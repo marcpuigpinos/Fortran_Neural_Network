@@ -1,0 +1,18 @@
+name = "fnn"
+version = "0.1.0"
+license = "license"
+author = "Marc PB"
+maintainer = "marc.puigpinos@gmail.com"
+copyright = "Copyright 2024, Marc PB"
+[build]
+auto-executables = true
+auto-tests = true
+auto-examples = true
+module-naming = false
+[install]
+library = false
+[fortran]
+implicit-typing = false
+implicit-external = false
+source-form = "free"
+
