@@ -1,1 +1,1 @@
-# fnn
+# Fortran Neural Network (fnn)
