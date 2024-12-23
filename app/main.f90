@@ -6,36 +6,57 @@ program main
   implicit none
 
   type(fnn_neuron), pointer :: neuron
-  real(kind=real64), allocatable :: inputs(:)
-  integer(kind=int32) error, number_inputs
-  real(kind=real64) prediction
+  real(kind=real64), pointer :: inputs(:), samples(:,:)
+  integer(kind=int32) error, number_inputs, number_samples
+  real(kind=real64) prediction, cost
   ! Declare a procedure pointer for the activation function
-  procedure(activation_function), pointer :: activation
+  procedure(fnn_activation_function), pointer :: activation
 
+  !----- f(x, y) = x^2 + y^2 + K ----
+  ! Input values to predict
   number_inputs = 2
-  if ( allocated(inputs) ) deallocate(inputs)
+  nullify(inputs)
   allocate(inputs(number_inputs))
-  inputs(1) = 10d0
+  inputs(1) = 5d0
   inputs(2) = 5d0
+  ! result must be (for K = 0) 50
+
+  ! Sample for prediction
+  nullify(samples)
+  number_samples = 4
+  allocate(samples(number_inputs + 1, number_samples))
+  samples(1,1) = 0; samples(2,1) = 0; samples(3,1) = 0
+  samples(1,2) = 3; samples(2,2) = 3; samples(3,2) = 18
+  samples(1,3) = 6; samples(2,3) = 6; samples(3,3) = 72
+  samples(1,4) = 5; samples(2,4) = 0; samples(3,4) = 25
+  
+
+  ! Allocate the neuron
   error = allocate_neuron(neuron)
-  error = initialize_neuron(neuron, number_inputs, inputs)
+
+  ! Point activation function
+  !activation => fnn_sigmoid  ! Point to the sigmoid function
+  activation => fnn_ReLU ! Pint to ReLU function
+
+  ! Initialize the neuron
+  error = initialize_neuron(neuron, number_inputs, activation)
   call print_neuron(neuron, 0)
-  !activation => sigmoid  ! Point to the sigmoid function
-  activation => ReLU
-  error = prediction_neuron(neuron, prediction, activation)
-  write(*,*) "Prediction: ", prediction
+
+  ! Train the neuron
+  
+  ! Compute the cost
+  error = cost_function_neuron(neuron, cost, number_inputs, number_samples, samples)
+  write(*,*) "Cost = ", cost
+  
+  ! Make prediction
+  error = prediction_neuron(neuron, prediction, number_inputs, inputs)
+  write(*,*) "Prediction = ", prediction
   error = deallocate_neuron(neuron)
 
-contains
+  if ( associated(inputs) ) deallocate(inputs)
+  nullify(inputs)
 
-  real(kind=real64) function sigmoid(x) result(y)
-    real(kind=real64), intent(in) :: x
-    y = 1d0 / ( 1d0 + exp(-x) )
-  end function sigmoid
-
-  real(kind=real64) function ReLU(x) result(y)
-    real(kind=real64), intent(in) :: x
-    y = max(0d0, x)
-  end function ReLU
+  if ( associated(samples) ) deallocate(samples)
+  nullify(samples)
   
 end program main
