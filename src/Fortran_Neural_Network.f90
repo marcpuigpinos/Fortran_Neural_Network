@@ -1,4 +1,4 @@
-module fnn
+module FortranNeuralNetwork
 
   use iso_fortran_env, only: int32, real64
   
@@ -145,4 +145,4 @@ contains
     write(*, '(A)') repeat(' ', padding) // "]"
   end subroutine print_neuron
   
-end module fnn
+end module FortranNeuralNetwork

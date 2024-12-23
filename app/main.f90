@@ -1,7 +1,7 @@
 program main
 
   use iso_fortran_env, only: int32, real64
-  use fnn
+  use FortranNeuralNetwork
   
   implicit none
 
