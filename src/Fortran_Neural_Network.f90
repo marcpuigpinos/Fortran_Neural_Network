@@ -13,7 +13,7 @@ module FortranNeuralNetwork
   public :: fnn_neuron, allocate_neuron, deallocate_neuron, initialize_neuron, prediction_neuron, cost_function_neuron, print_neuron
 
   !------ Activation function interface ------
-  abstract interface
+  interface
      function fnn_activation_function(x) result(y)
        use iso_fortran_env, only: real64
        real(kind=real64), intent(in) :: x
@@ -23,7 +23,7 @@ module FortranNeuralNetwork
   !------ End Activation function interface ------
 
   !------ Derivative Activation function interface ------
-  abstract interface
+  interface
      function fnn_derivative_activation_function(x) result(y)
        use iso_fortran_env, only: real64
        real(kind=real64), intent(in) :: x
