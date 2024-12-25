@@ -60,12 +60,12 @@ Partial derivative with respect $\mathbf{w}$:
   \dfrac{\delta C(\mathbf{w},b)}{\delta w_i}
   &= \left( \frac{1}{2m} \left(f_a(z) - y\right)^2 \right)' \nonumber \\
   &= \frac{1}{m} \left(f_a(z) - y\right) f_a'(z) z' \nonumber \\
-  &= \frac{1}{m} \sum_{j=1}^m \left(f_a(\mathbf{w \cdot x} + b) - y_j\right) f_a'(\mathbf{w \cdot x} + b) (x_i)_j
+  &= \frac{1}{m} \sum_{j=1}^m \left(f_a(\mathbf{w^T \cdot x} + b) - y_j\right) f_a'(\mathbf{w^T \cdot x} + b) (x_i)_j
 \end{align}
 
 In a similar way, the partial derivative with respect $b$:
 \begin{equation}
-  \dfrac{\delta C(\mathbf{w},b)}{\delta b} = \frac{1}{m} \sum_{j=1}^m \left(f_a(\mathbf{w \cdot x} + b) - y_j\right) f_a'(\mathbf{w \cdot x} + b)
+  \dfrac{\delta C(\mathbf{w},b)}{\delta b} = \frac{1}{m} \sum_{j=1}^m \left(f_a(\mathbf{w^T \cdot x} + b) - y_j\right) f_a'(\mathbf{w^T \cdot x} + b)
 \end{equation}
 
 \section*{Activation functions}
