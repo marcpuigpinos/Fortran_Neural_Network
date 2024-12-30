@@ -293,6 +293,7 @@ contains
     
     error = 0
     dcost_l = 0d0
+    dcost = 0d0
     nullify(inputs)    
     ! If neuron is not allocated, return with error.
     if ( .not. neuron%allocated ) then
@@ -332,18 +333,16 @@ contains
        rval = prediction - samples(sample_output, i)
        err_stat = dprediction_neuron(neuron, dprediction, n_inputs, inputs)
        rval = rval * dprediction
-       dcost_l = dcost_l + rval
+       dcost(1:n_inputs) = dcost(1:n_inputs) + rval * inputs(1:n_inputs)
+       dcost(n_inputs + 1) = dcost(n_inputs + 1) + rval
+       !dcost_l = dcost_l + rval
     enddo 
     
     ! If there is an error, retur
     if ( error /= 0 ) return
     
-    dcost_l = dcost_l / n_samples
-
-    do i = 1, n_inputs
-       dcost(i) = dcost_l * inputs(i)
-    enddo
-    dcost(n_inputs + 1) = dcost_l
+    !dcost_l = dcost_l / n_samples
+    dcost = dcost / n_samples
 
     nullify(inputs)
   end function derivative_cost_function_neuron
