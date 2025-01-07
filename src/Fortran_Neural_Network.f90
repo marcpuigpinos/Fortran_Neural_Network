@@ -47,7 +47,7 @@ module FortranNeuralNetwork
    type fnn_layer
       logical :: allocated = .false.
       logical :: initialized = .false.
-      integer(kind=int32) :: number_inputs
+      integer(kind=int32) :: number_inputs, number_neurons
       real(kind=real64), allocatable :: inputs(:)
       type(fnn_neuron), allocatable :: neurons(:)
       procedure(fnn_activation_function), nopass, pointer :: activation => null()
@@ -99,14 +99,21 @@ contains
       error = 0
       nullify (neuron)
       allocate (neuron, stat=status)
-      if (status /= 0) error = status
+      if (status /= 0) then
+         error = status
+         return
+      end if
       neuron%number_inputs = 0
-      if (allocated(neuron%weights)) deallocate (neuron%weights, stat=error)
-      if (status /= 0) error = status
+      if (allocated(neuron%weights)) deallocate (neuron%weights, stat=status)
+      if (status /= 0) then
+         error = status
+         return
+      end if
       neuron%bias = 0d0
       nullify (neuron%activation)
       nullify (neuron%derivative_activation)
       neuron%allocated = .true.
+      neuron%initialized = .false.
    end function allocate_neuron
 
    integer(kind=int32) function deallocate_neuron(neuron) result(error)
@@ -273,13 +280,51 @@ contains
    !------ Layer procedures ------
    integer(kind=int32) function allocate_layer(layer) result(error)
       type(fnn_layer), pointer :: layer
-      error = 0
+      integer(kind=int32) :: status
+
+      error = 0 ! Error initialization
+
+      ! Allcoate layer
+      nullify (layer)
+      allocate (layer, stat=status)
+      if (status /= 0) then
+         error = status
+         return
+      end if
+
+      ! Allocate layer inputs
+      layer%number_inputs = 0
+      if (allocated(layer%inputs)) deallocate (layer%inputs, stat=status)
+      if (status /= 0) then
+         error = status
+         return
+      end if
+
+      ! Allocate layer neurons
+      layer%number_neurons = 0
+      if (allocated(layer%neurons)) deallocate (layer%neurons, stat=status)
+      if (status /= 0) then
+         error = status
+         return
+      end if
+
+      ! Nullify procedure pointers
+      nullify (layer%activation)
+      nullify (layer%derivative_activation)
+      layer%allocated = .true.
+      layer%initialized = .false.
+
    end function allocate_layer
 
    integer(kind=int32) function deallocate_layer(layer) result(error)
       type(fnn_layer), pointer :: layer
       error = 0
    end function deallocate_layer
+
+   integer(kind=int32) function initialize_layer(layer) result(error)
+      type(fnn_layer), pointer :: layer
+      error = 0
+   end function initialize_layer
 
    integer(kind=int32) function prediction_layer(layer) result(error)
       type(fnn_layer), pointer :: layer
