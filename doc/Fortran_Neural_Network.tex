@@ -97,4 +97,23 @@ The derivative of the ReLU function is:
   \end{cases}
 \end{equation}
 
+\section*{Network}
+\begin{center}
+  \begin{tikzpicture}
+    % Draw Layer 1
+    \node[black] at (3,3.5) {Layer $l_1$};
+    \draw (3,2) circle (1);
+    \node[black] at (3,2) {$b_1$, $f_{a1}(z_1)$};
+    \node[black] (x) at (1,2) {$\mathbf{x}, \mathbf{w_1}$};
+    \draw[->, thick] (x) -- (2,2);
+    \node[black] at (4.5,2.2) {$a_1, w_2$};
+    \draw (6,2) circle (1);
+    \draw[->, thick] (4,2) -- (5,2);
+    \node[black] at (6,2) {$b_2$, $f_{a2}(z_2)$};
+    \node[black] at (6,3.5) {Layer $l_2$};
+    \node[black] (out) at (8,2) {$y^{pred}$};
+    \draw[->, thick] (7, 2) -- (out);
+  \end{tikzpicture}
+\end{center}
+
 \end{document}
