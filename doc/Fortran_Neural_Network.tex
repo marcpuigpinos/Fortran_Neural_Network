@@ -116,4 +116,28 @@ The derivative of the ReLU function is:
   \end{tikzpicture}
 \end{center}
 
+Compute Layer 1:
+\begin{align}
+  z_1 &= \mathbf{w_1^T} \cdot \mathbf{x} + b_1 \nonumber \\
+  a_1 &= f_{a1}(z_1) = 
+\end{align}
+
+Compute Layer 2:
+\begin{align}
+  z_2 &= w_2 a_1 + b_2 \nonumber \\
+  y^{pred} &= f_{a2}(z_2) = f_{a2}(w_2 a_1 + b_2)
+\end{align}
+
+Network:
+\begin{equation}
+  y^{pred} = f_{a2}(w_2 f_{a1}(\mathbf{w_1^T} \cdot \mathbf{x} + b_1) + b_2)
+\end{equation}
+
+Cost function for $m$ samples:
+\begin{align}
+  C(\mathbf(w^*),\mathbf{b^*}) &= \dfrac{1}{2m} \sum_{i=1}^m (y^{pred} - y)^2 \nonumber \\
+  &= \dfrac{1}{2m} \sum_{i=1}^m (f_{a2}(w_2 f_{a1}(\mathbf{w_1^T} \cdot \mathbf{x} + b_1) + b_2) - y)^2
+\end{align}
+
+
 \end{document}
