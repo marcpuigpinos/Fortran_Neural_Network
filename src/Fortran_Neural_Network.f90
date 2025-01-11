@@ -12,6 +12,9 @@ module FortranNeuralNetwork
     !  public interfaces
     public :: fnn_net, fnn_add, fnn_compile
 
+    ! temporal public layer
+    public :: fnn_layer, allocate_layer, deallocate_layer, initialize_layer, prediction_layer, print_layer
+
     !------ Activation function interface ------
     interface
         function fnn_activation_function(x) result(y)
@@ -355,7 +358,7 @@ contains
 
         ! If layer is not allocated simply return
         if ( .not. layer%allocated ) return
-        
+
         ! Deallocate arrays
         if (allocated(layer%neurons)) then
             do i=1, layer%number_neurons
@@ -436,15 +439,73 @@ contains
 
     integer(kind=ik) function prediction_layer(layer, prediction, n_inputs, inputs) result(error)
         type(fnn_layer), pointer :: layer
-        real(kind=rk), intent(out) :: prediction
+        real(kind=rk), pointer :: prediction(:) !layer%number_neurons length
         integer(kind=ik), intent(in) :: n_inputs
         real(kind=rk), pointer :: inputs(:)
+
+        ! Local vars
+        integer(kind=ik) ineuron
+        type(fnn_neuron), pointer :: neuron
+
+        ! Nullify
+        nullify(neuron)
 
         ! Initialize error
         error = 0
 
+        ! Check if layer is allocated
+        if (.not. layer%allocated) then
+            error = 1
+            return
+        endif
+
+        ! Check if layer is initialized
+        if (.not. layer%initialized) then
+            error = 1
+            return
+        endif
+
+        ! Check if n_inputs is the same that layer number_inputs
+        if (n_inputs /= layer%number_inputs) then
+            error = 1
+            return
+        endif
+        
+        ! Loop over neurons to compute prediction
+        do ineuron = 1, layer%number_neurons
+           neuron => layer%neurons(ineuron)
+           error = prediction_neuron(neuron, prediction(ineuron), layer%number_inputs, inputs)
+        enddo
+
+        ! Nullify
+        nullify(neuron)        
+
     end function prediction_layer
 
+    subroutine print_layer(layer, padding)
+        type(fnn_layer), pointer :: layer
+        integer(kind=ik), intent(in) :: padding
+
+        ! Local var
+        integer(kind=ik) ineuron
+        type(fnn_neuron), pointer :: neuron
+
+        ! Nullify local pointers
+        nullify(neuron)
+        
+        ! Print the opening bracket for the neuron
+        write (*, '(A)') repeat(' ', padding)//"Layer: ["
+        do ineuron = 1, layer%number_neurons
+           neuron => layer%neurons(ineuron)
+           call print_neuron(neuron, padding + 4)
+        enddo
+        write(*, '(A)') repeat(' ', padding)//"]"
+
+        ! Nullify local pointers
+        nullify(neuron)
+        
+    end subroutine print_layer
+    
     integer(kind=ik) function update_layer(layer) result(error)
         type(fnn_layer), pointer :: layer
         error = 0
