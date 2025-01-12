@@ -45,6 +45,11 @@ module FortranNeuralNetwork
         procedure(fnn_activation_function), nopass, pointer :: activation => null()
         procedure(fnn_derivative_activation_function), nopass, pointer :: derivative_activation => null()
     end type fnn_neuron
+
+    type fnn_neuron_pointer
+        type(fnn_neuron), pointer :: neuron
+    end type fnn_neuron_pointer
+    
     !------ End Neuron type definition ------
 
     !------ Layer type definition -------
@@ -52,7 +57,7 @@ module FortranNeuralNetwork
         logical :: allocated = .false.
         logical :: initialized = .false.
         integer(kind=ik) :: number_inputs, number_neurons
-        type(fnn_neuron), allocatable :: neurons(:)
+        type(fnn_neuron_pointer), allocatable :: neurons(:)
         procedure(fnn_activation_function), nopass, pointer :: activation => null()
         procedure(fnn_derivative_activation_function), nopass, pointer :: derivative_activation => null()
     end type fnn_layer
@@ -334,7 +339,7 @@ contains
             error = status
             return
         end if
-
+        
         ! Nullify procedure pointers
         nullify (layer%activation)
         nullify (layer%derivative_activation)
@@ -348,10 +353,6 @@ contains
 
         ! Local vars
         integer(kind=ik) i
-        type(fnn_neuron), pointer :: neuron
-
-        ! Nullify local pointers
-        nullify(neuron)
 
         ! Initialize error
         error = 0
@@ -362,8 +363,7 @@ contains
         ! Deallocate arrays
         if (allocated(layer%neurons)) then
             do i=1, layer%number_neurons
-               neuron => layer%neurons(i)
-               error = deallocate_neuron(neuron)
+               error = deallocate_neuron(layer%neurons(i)%neuron)
                if (error /= 0) return
             enddo
             deallocate(layer%neurons, stat=error)
@@ -381,9 +381,6 @@ contains
         ! nullify procedure pointers
         nullify(layer%activation, layer%derivative_activation)
 
-        ! Nullify local pointers
-        nullify(neuron)
-
     end function deallocate_layer
 
     integer(kind=ik) function initialize_layer(layer, number_inputs, number_neurons, activation, derivative_activation) result(error)
@@ -394,10 +391,6 @@ contains
 
         ! Local vars
         integer(kind=ik) i
-        type(fnn_neuron), pointer :: neuron
-
-        ! Nullify local pointers
-        nullify(neuron)
 
         ! Initialize error
         error = 0
@@ -422,15 +415,11 @@ contains
         allocate(layer%neurons(layer%number_neurons), stat=error)
         if (error /= 0) return
         do i=1, layer%number_neurons
-           neuron => layer%neurons(i)
-           error = allocate_neuron(neuron)
+           error = allocate_neuron(layer%neurons(i)%neuron)
            if (error /= 0) return
-           error = initialize_neuron(neuron, number_inputs, activation, derivative_activation)
+           error = initialize_neuron(layer%neurons(i)%neuron, number_inputs, activation, derivative_activation)
            if (error /= 0) return
         enddo
-
-        ! Nullify local pointers
-        nullify(neuron)        
 
         ! Once every task is done, set the initialized variable to true.
         layer%initialized = .true.
@@ -473,7 +462,7 @@ contains
         
         ! Loop over neurons to compute prediction
         do ineuron = 1, layer%number_neurons
-           neuron => layer%neurons(ineuron)
+           neuron => layer%neurons(ineuron)%neuron
            error = prediction_neuron(neuron, prediction(ineuron), layer%number_inputs, inputs)
         enddo
 
@@ -496,7 +485,7 @@ contains
         ! Print the opening bracket for the neuron
         write (*, '(A)') repeat(' ', padding)//"Layer: ["
         do ineuron = 1, layer%number_neurons
-           neuron => layer%neurons(ineuron)
+           neuron => layer%neurons(ineuron)%neuron
            call print_neuron(neuron, padding + 4)
         enddo
         write(*, '(A)') repeat(' ', padding)//"]"

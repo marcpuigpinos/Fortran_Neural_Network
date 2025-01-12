@@ -24,12 +24,9 @@ program main
     allocate(predictions(number_neurons))
     nullify(layer)
     error = allocate_layer(layer)
-    print *, "Error allocate: ", error
     error = initialize_layer(layer, number_inputs, number_neurons, activation, derivative_activation)
-    print *, "Error initialize: ", error
     call print_layer(layer, 4)
     error = prediction_layer(layer, predictions, number_inputs, inputs)
-    print *, "Error prediction: ", error
     print *, "Inputs: ", inputs
     print *, "Predictions: ", predictions
 
