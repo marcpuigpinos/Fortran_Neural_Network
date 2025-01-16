@@ -135,9 +135,46 @@ Network:
 
 Cost function for $m$ samples:
 \begin{align}
-  C(\mathbf(w^*),\mathbf{b^*}) &= \dfrac{1}{2m} \sum_{i=1}^m (y^{pred} - y)^2 \nonumber \\
+  C(\mathbf{w^*},\mathbf{b^*}) &= \dfrac{1}{2m} \sum_{i=1}^m (y^{pred} - y)^2 \nonumber \\
   &= \dfrac{1}{2m} \sum_{i=1}^m (f_{a2}(w_2 f_{a1}(\mathbf{w_1^T} \cdot \mathbf{x} + b_1) + b_2) - y)^2
 \end{align}
 
+Derivative of the cost function:
+\begin{align}
+  \nabla_{\mathbf{w^*}}C(\mathbf{w^*}, \mathbf{b^*}) = [\delta_{w_1} C(\mathbf{w^*}, \mathbf{b^*}), ..., \delta_{w_i} C(\mathbf{w^*}, \mathbf{b^*}), ..., \delta_{w_n} C(\mathbf{w^*}, \mathbf{b^*})]  \\
+  \nabla_{\mathbf{b^*}}C(\mathbf{w^*}, \mathbf{b^*}) = [\delta_{b_1} C(\mathbf{w^*}, \mathbf{b^*}), ..., \delta_{b_i} C(\mathbf{w^*}, \mathbf{b^*}), ..., \delta_{b_n} C(\mathbf{w^*}, \mathbf{b^*})]
+\end{align}
+
+In our case:
+\begin{align}
+  \nabla_{\mathbf{w^*}}C(\mathbf{w^*}, \mathbf{b^*}) = [\delta_{w_1} C(\mathbf{w^*}, \mathbf{b^*}), \delta_{w_2} C(\mathbf{w^*}, \mathbf{b^*})]  \\
+  \nabla_{\mathbf{b^*}}C(\mathbf{w^*}, \mathbf{b^*}) = [\delta_{b_1} C(\mathbf{w^*}, \mathbf{b^*}), \delta_{b_2} C(\mathbf{w^*}, \mathbf{b^*})]
+\end{align}
+
+Let's define some nomencalutre before compute the gradients of the cost function:
+
+\begin{align}
+  \mathbf{a_0} &= \mathbf{x} \\ 
+  z_1 &= \mathbf{w_1^T} \cdot \mathbf{x} + b_1 \\
+  a_1 &= f_{a1}(z_1) = f_{a1}(\mathbf{w_1^T} \cdot \mathbf{b_1}) \\
+  z_2 &= w_2 f_{a1}(z_1) + b_2 = w_2 f_{a1}(\mathbf{w_1^T} \cdot \mathbf{b_1}) + b_2 \\
+  a_2 &= f_{a2}(z_2) = w_2 f_{a1}(z_1) + b_2
+\end{align}
+
+Let's compute the gradients with respect the weights $\mathbf{w^*}$:
+\begin{align}
+  \delta_{w_1} C(\mathbf{w^*}, \mathbf{b^*}) &= \delta_{w_1} ( \dfrac{1}{2m} \sum_{i=1}^m (a_2 - y)^2) \nonumber \\
+  &= \dfrac{1}{m} \sum_1^m (a_2 - y) f'_{a2}(z_2) w_2 f'_{a1}(z_1) \mathbf{a_0} \\
+  \delta_{w_2} C(\mathbf{w^*}, \mathbf{b^*}) &= \delta_{w_2} ( \dfrac{1}{2m} \sum_{i=1}^m (a_2 - y)^2) \nonumber \\
+  &= \dfrac{1}{m} \sum_1^m (a_2 - y) f'_{a2}(z_2) a_1 
+\end{align}
+
+Let's do the same for the bias $\mathbf{b^*}$:
+\begin{align}
+  \delta_{w_1} C(\mathbf{w^*}, \mathbf{b^*}) &= \delta_{w_1} ( \dfrac{1}{2m} \sum_{i=1}^m (a_2 - y)^2) \nonumber \\
+  &= \dfrac{1}{m} \sum_1^m (a_2 - y) f'_{a2}(z_2) w_2 f'_{a1}(z_1) \\
+  \delta_{w_2} C(\mathbf{w^*}, \mathbf{b^*}) &= \delta_{w_2} ( \dfrac{1}{2m} \sum_{i=1}^m (a_2 - y)^2) \nonumber \\
+  &= \dfrac{1}{m} \sum_1^m (a_2 - y) f'_{a2}(z_2)x
+\end{align}
 
 \end{document}
