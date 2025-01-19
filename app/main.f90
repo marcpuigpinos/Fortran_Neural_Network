@@ -16,17 +16,17 @@ program main
     number_inputs = 3
     nullify(inputs)
     allocate(inputs(number_inputs))
-    inputs(1) = 2.0
+    inputs(1) = 1.0
     inputs(2) = 1.0
-    inputs(3) = 45.0
-    number_neurons = 2
+    inputs(3) = 1.0
+    number_neurons = 1
     nullify(predictions)
     allocate(predictions(number_neurons))
     nullify(layer)
     error = allocate_layer(layer)
     error = initialize_layer(layer, number_inputs, number_neurons, activation, derivative_activation)
+    error = activations_layer(layer, predictions, number_inputs, inputs)
     call print_layer(layer, 4)
-    error = prediction_layer(layer, predictions, number_inputs, inputs)
     print *, "Inputs: ", inputs
     print *, "Predictions: ", predictions
 

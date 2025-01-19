@@ -13,7 +13,7 @@ module FortranNeuralNetwork
     public :: fnn_net, fnn_add, fnn_compile
 
     ! temporal public layer
-    public :: fnn_layer, allocate_layer, deallocate_layer, initialize_layer, prediction_layer, print_layer
+    public :: fnn_layer, allocate_layer, deallocate_layer, initialize_layer, activations_layer, print_layer
 
     !------ Activation function interface ------
     interface
@@ -41,7 +41,8 @@ module FortranNeuralNetwork
         logical :: initialized = .false.
         integer(kind=ik) :: number_inputs
         real(kind=rk), allocatable :: weights(:)
-        real(kind=rk) :: bias
+        real(kind=rk) :: z
+        real(kind=rk) :: a
         procedure(fnn_activation_function), nopass, pointer :: activation => null()
         procedure(fnn_derivative_activation_function), nopass, pointer :: derivative_activation => null()
     end type fnn_neuron
@@ -124,7 +125,8 @@ contains
             error = status
             return
         end if
-        neuron%bias = 0d0
+        neuron%z = 0d0
+        neuron%a = 0d0
 
         ! Activation function
         nullify (neuron%activation)
@@ -157,8 +159,9 @@ contains
 
         ! Set vars to zero
         neuron%number_inputs = 0
-        neuron%bias = 0d0
-
+        neuron%z = 0d0
+        neuron%a = 0d0
+        
         ! Nullify pointers
         nullify (neuron%activation)
         nullify (neuron%derivative_activation)
@@ -186,7 +189,6 @@ contains
         if (error /= 0) return
         call random_seed()
         call random_number(neuron%weights)
-        call random_number(neuron%bias)
 
         ! Point activation and derivative_activaton function
         neuron%activation => activation
@@ -197,16 +199,14 @@ contains
 
     end function initialize_neuron
 
-    integer(kind=ik) function prediction_neuron(neuron, prediction, n_inputs, inputs) result(error)
+    integer(kind=ik) function activation_neuron(neuron, n_inputs, inputs) result(error)
         type(fnn_neuron), pointer :: neuron
-        real(kind=rk), intent(out) :: prediction
         integer(kind=ik), intent(in) :: n_inputs
         real(kind=rk), pointer :: inputs(:)
         integer i
 
         ! Initialize vars
         error = 0
-        prediction = 0d0
 
         ! If neuron is not allocated, return with error.
         if (.not. neuron%allocated) then
@@ -232,16 +232,13 @@ contains
             return
         end if
 
-        do i = 1, neuron%number_inputs
-           prediction = prediction + neuron%weights(i)*inputs(i)
-        end do
-
-        prediction = prediction + neuron%bias
+        ! Compute z
+        neuron%z = dot_product(neuron%weights, inputs)
 
         ! Apply activation function
-        prediction = neuron%activation(prediction)
+        neuron%a = neuron%activation(neuron%z)
 
-    end function prediction_neuron
+    end function activation_neuron
 
     integer(kind=ik) function update_neuron(neuron, grad_cost, n_inputs, learning_rate) result(error)
         type(fnn_neuron), pointer :: neuron
@@ -250,6 +247,7 @@ contains
         real(kind=rk), intent(in) :: learning_rate
         integer i
 
+        ! Initialize error
         error = 0
 
         ! If neuron is not allocated, return with error.
@@ -276,19 +274,14 @@ contains
             return
         end if
 
-        if (size(grad_cost) /= n_inputs + 1) then
+        if (size(grad_cost) /= n_inputs) then
             error = 1
             return
         end if
 
         ! Update the weights:
-        do i = 1, neuron%number_inputs
-           neuron%weights(i) = neuron%weights(i) - learning_rate*grad_cost(i)
-        end do
-
-        ! Update the bias:
-        neuron%bias = neuron%bias - learning_rate*grad_cost(n_inputs + 1)
-
+        neuron%weights(:) = neuron%weights(:) - learning_rate * grad_cost(:)
+        
     end function update_neuron
 
     subroutine print_neuron(neuron, padding)
@@ -300,15 +293,15 @@ contains
         write (*, '(A)') repeat(' ', padding)//"["
 
         ! Print the weights
-        write (*, '(A)') repeat(' ', padding + 5)//"weights = ["
+        write (*, '(A)') repeat(' ', padding + 5)//"w = ["
         do i = 1, neuron%number_inputs
            write (*, '(A, F12.5)') repeat(' ', padding + 10), neuron%weights(i)
         end do
         write (*, '(A)') repeat(' ', padding + 5)//"]"
 
-        ! Print the bias
-        write (*, '(A, F12.5)') repeat(' ', padding + 5)//"bias = ", neuron%bias
-
+        write (*, '(A, F12.5)') repeat(' ', padding + 5)//"z = ", neuron%z
+        write (*, '(A, F12.5)') repeat(' ', padding + 5)//"a = ", neuron%a
+        
         ! Print the closing bracket for the neuron
         write (*, '(A)') repeat(' ', padding)//"]"
     end subroutine print_neuron
@@ -426,9 +419,9 @@ contains
 
     end function initialize_layer
 
-    integer(kind=ik) function prediction_layer(layer, prediction, n_inputs, inputs) result(error)
+    integer(kind=ik) function activations_layer(layer, activations, n_inputs, inputs) result(error)
         type(fnn_layer), pointer :: layer
-        real(kind=rk), pointer :: prediction(:) !layer%number_neurons length
+        real(kind=rk), pointer :: activations(:) !layer%number_neurons length
         integer(kind=ik), intent(in) :: n_inputs
         real(kind=rk), pointer :: inputs(:)
 
@@ -463,14 +456,53 @@ contains
         ! Loop over neurons to compute prediction
         do ineuron = 1, layer%number_neurons
            neuron => layer%neurons(ineuron)%neuron
-           error = prediction_neuron(neuron, prediction(ineuron), layer%number_inputs, inputs)
+           error = activation_neuron(neuron, layer%number_inputs, inputs)
+           if ( error /= 0 ) return
+           activations(ineuron) = neuron%a
         enddo
 
         ! Nullify
         nullify(neuron)        
 
-    end function prediction_layer
+    end function activations_layer
 
+    integer(kind=ik) function update_layer(layer, grad_cost, n_inputs, learning_rate) result(error)
+        type(fnn_layer), pointer :: layer
+        real(kind=rk), pointer :: grad_cost(:)
+        integer(kind=ik), intent(in) :: n_inputs
+        real(kind=rk), intent(in) :: learning_rate
+
+        ! Local var
+        integer(kind=ik) :: ineuron
+
+        ! Initialize error
+        error = 0
+
+        ! Check if layer is allocated
+        if (.not. layer%allocated) then
+            error = 1
+            return
+        endif
+
+        ! Check if layer is initialized
+        if (.not. layer%initialized) then
+            error = 1
+            return
+        endif
+
+        ! Check if n_inputs is the same that layer number_inputs
+        if (n_inputs /= layer%number_inputs) then
+            error = 1
+            return
+        endif        
+
+        ! Loop over each neuron and update
+        do ineuron = 1, layer%number_neurons
+           error = update_neuron(layer%neurons(ineuron)%neuron, grad_cost, n_inputs, learning_rate)
+        enddo
+
+    end function update_layer
+    
     subroutine print_layer(layer, padding)
         type(fnn_layer), pointer :: layer
         integer(kind=ik), intent(in) :: padding
@@ -494,11 +526,6 @@ contains
         nullify(neuron)
         
     end subroutine print_layer
-    
-    integer(kind=ik) function update_layer(layer) result(error)
-        type(fnn_layer), pointer :: layer
-        error = 0
-    end function update_layer
     !------ End Layer procedures ------
 
     !------ Network procedures -------
