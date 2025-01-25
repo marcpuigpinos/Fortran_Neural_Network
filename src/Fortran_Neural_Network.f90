@@ -1,550 +1,682 @@
 module FortranNeuralNetwork
 
-    use iso_fortran_env, only: ik => int32, rk => real64
+   use iso_fortran_env, only: ik => int32, rk => real64
 
-    implicit none
+   implicit none
 
-    private
+   private
 
-    ! Activation functions public interfaces
+   ! Activation functions public interfaces
     public :: fnn_activation_function, fnn_derivative_activation_function, fnn_sigmoid, fnn_ReLU, fnn_derivative_sigmoid, fnn_derivative_ReLU
 
-    !  public interfaces
-    public :: fnn_net, fnn_add, fnn_compile
+   !  public interfaces
+   public :: fnn_net, fnn_add, fnn_compile
 
-    ! temporal public layer
-    public :: fnn_layer, allocate_layer, deallocate_layer, initialize_layer, activations_layer, print_layer
+   ! temporal public network
+   public :: allocate_network, deallocate_network, initialize_network, add_layer_to_network, activate_network, print_network
 
-    !------ Activation function interface ------
-    interface
-        function fnn_activation_function(x) result(y)
-            use iso_fortran_env, only: rk => real64
-            real(kind=rk), intent(in) :: x
-            real(kind=rk) :: y
-        end function fnn_activation_function
-    end interface
-    !------ End Activation function interface ------
+   !------ Activation function interface ------
+   interface
+      function fnn_activation_function(x) result(y)
+         use iso_fortran_env, only: rk => real64
+         real(kind=rk), intent(in) :: x
+         real(kind=rk) :: y
+      end function fnn_activation_function
+   end interface
+   !------ End Activation function interface ------
 
-    !------ Derivative Activation function interface ------
-    interface
-        function fnn_derivative_activation_function(x) result(y)
-            use iso_fortran_env, only: rk => real64
-            real(kind=rk), intent(in) :: x
-            real(kind=rk) :: y
-        end function fnn_derivative_activation_function
-    end interface
-    !------ End Derivative Activation function interface ------
+   !------ Derivative Activation function interface ------
+   interface
+      function fnn_derivative_activation_function(x) result(y)
+         use iso_fortran_env, only: rk => real64
+         real(kind=rk), intent(in) :: x
+         real(kind=rk) :: y
+      end function fnn_derivative_activation_function
+   end interface
+   !------ End Derivative Activation function interface ------
 
-    !------ Neuron type definition ------
-    type fnn_neuron
-        logical :: allocated = .false.
-        logical :: initialized = .false.
-        integer(kind=ik) :: number_inputs
-        real(kind=rk), allocatable :: weights(:)
-        real(kind=rk) :: z
-        real(kind=rk) :: a
-        procedure(fnn_activation_function), nopass, pointer :: activation => null()
-        procedure(fnn_derivative_activation_function), nopass, pointer :: derivative_activation => null()
-    end type fnn_neuron
+   !------ Neuron type definition ------
+   type fnn_neuron
+      logical :: allocated = .false.
+      logical :: initialized = .false.
+      integer(kind=ik) :: number_inputs
+      real(kind=rk), allocatable :: weights(:)
+      real(kind=rk) :: z
+      real(kind=rk) :: a
+      procedure(fnn_activation_function), nopass, pointer :: activation => null()
+      procedure(fnn_derivative_activation_function), nopass, pointer :: derivative_activation => null()
+   end type fnn_neuron
 
-    type fnn_neuron_pointer
-        type(fnn_neuron), pointer :: neuron
-    end type fnn_neuron_pointer
-    
-    !------ End Neuron type definition ------
+   type fnn_neuron_pointer
+      type(fnn_neuron), pointer :: neuron
+   end type fnn_neuron_pointer
 
-    !------ Layer type definition -------
-    type fnn_layer
-        logical :: allocated = .false.
-        logical :: initialized = .false.
-        integer(kind=ik) :: number_inputs, number_neurons
-        type(fnn_neuron_pointer), allocatable :: neurons(:)
-        procedure(fnn_activation_function), nopass, pointer :: activation => null()
-        procedure(fnn_derivative_activation_function), nopass, pointer :: derivative_activation => null()
-    end type fnn_layer
-    !------ End Layer type definition ------
+   !------ End Neuron type definition ------
 
-    !------ Network type definition -------
-    type fnn_network
-        logical :: allocated = .false.
-        logical :: initialized = .false.
-    end type fnn_network
-    !------ End Network type definition -------
+   !------ Layer type definition -------
+   type fnn_layer
+      logical :: allocated = .false.
+      logical :: initialized = .false.
+      integer(kind=ik) :: number_inputs, number_neurons
+      type(fnn_neuron_pointer), allocatable :: neurons(:)
+      procedure(fnn_activation_function), nopass, pointer :: activation => null()
+      procedure(fnn_derivative_activation_function), nopass, pointer :: derivative_activation => null()
+   end type fnn_layer
+
+   type fnn_layer_pointer
+      type(fnn_layer), pointer :: layer
+   end type fnn_layer_pointer
+   !------ End Layer type definition ------
+
+   !------ Network type definition -------
+   type fnn_network
+      logical :: allocated = .false.
+      logical :: initialized = .false.
+      integer(kind=ik) :: number_inputs, number_layers
+      type(fnn_layer_pointer), allocatable :: layers(:)
+   end type fnn_network
+   !------ End Network type definition -------
 
 contains
 
-    !------ Activation functions ------
-    real(kind=rk) function fnn_sigmoid(x) result(y)
-        real(kind=rk), intent(in) :: x
-        y = 1d0/(1d0 + exp(-x))
-    end function fnn_sigmoid
+   !------ Activation functions ------
+   real(kind=rk) function fnn_sigmoid(x) result(y)
+      real(kind=rk), intent(in) :: x
+      y = 1d0/(1d0 + exp(-x))
+   end function fnn_sigmoid
 
-    real(kind=rk) function fnn_ReLU(x) result(y)
-        real(kind=rk), intent(in) :: x
-        y = max(0d0, x)
-    end function fnn_ReLU
-    !------ End Activation functions ------
+   real(kind=rk) function fnn_ReLU(x) result(y)
+      real(kind=rk), intent(in) :: x
+      y = max(0d0, x)
+   end function fnn_ReLU
+   !------ End Activation functions ------
 
-    !------ Derivative activation functions ------
-    real(kind=rk) function fnn_derivative_sigmoid(x) result(y)
-        real(kind=rk), intent(in) :: x
-        real(kind=rk) sigmoid
-        sigmoid = fnn_sigmoid(x)
-        y = sigmoid*(1 - sigmoid)
-    end function fnn_derivative_sigmoid
+   !------ Derivative activation functions ------
+   real(kind=rk) function fnn_derivative_sigmoid(x) result(y)
+      real(kind=rk), intent(in) :: x
+      real(kind=rk) sigmoid
+      sigmoid = fnn_sigmoid(x)
+      y = sigmoid*(1 - sigmoid)
+   end function fnn_derivative_sigmoid
 
-    real(kind=rk) function fnn_derivative_ReLU(x) result(y)
-        real(kind=rk), intent(in) :: x
-        y = 0d0
-        if (x > 1.0e-9) y = 1d0
-    end function fnn_derivative_ReLU
-    !------ End Derivative activation functions ------
+   real(kind=rk) function fnn_derivative_ReLU(x) result(y)
+      real(kind=rk), intent(in) :: x
+      y = 0d0
+      if (x > 1.0e-9) y = 1d0
+   end function fnn_derivative_ReLU
+   !------ End Derivative activation functions ------
 
-    !------ Neuron procedures ------
-    integer(kind=ik) function allocate_neuron(neuron) result(error)
-        type(fnn_neuron), pointer :: neuron
-        integer(kind=ik) :: status
+   !------ Neuron procedures ------
+   integer(kind=ik) function allocate_neuron(neuron) result(error)
+      type(fnn_neuron), pointer :: neuron
+      integer(kind=ik) :: status
 
-        ! Initialize error
-        error = 0
+      ! Initialize error
+      error = 0
 
-        ! Nullify neuron
-        nullify (neuron)
+      ! Nullify neuron
+      nullify (neuron)
 
-        ! Allocate neuron
-        allocate (neuron, stat=status)
-        if (status /= 0) then
-            error = status
-            return
-        end if
+      ! Allocate neuron
+      allocate (neuron, stat=status)
+      if (status /= 0) then
+         error = status
+         return
+      end if
 
-        ! Parameters
-        neuron%number_inputs = 0
-        if (allocated(neuron%weights)) deallocate (neuron%weights, stat=status)
-        if (status /= 0) then
-            error = status
-            return
-        end if
-        neuron%z = 0d0
-        neuron%a = 0d0
+      ! Parameters
+      neuron%number_inputs = 0
+      if (allocated(neuron%weights)) deallocate (neuron%weights, stat=status)
+      if (status /= 0) then
+         error = status
+         return
+      end if
+      neuron%z = 0d0
+      neuron%a = 0d0
 
-        ! Activation function
-        nullify (neuron%activation)
-        nullify (neuron%derivative_activation)
+      ! Activation function
+      nullify (neuron%activation)
+      nullify (neuron%derivative_activation)
 
-        ! Neuron state vars
-        neuron%allocated = .true.
-        neuron%initialized = .false.
-    end function allocate_neuron
+      ! Neuron state vars
+      neuron%allocated = .true.
+      neuron%initialized = .false.
+   end function allocate_neuron
 
-    integer(kind=ik) function deallocate_neuron(neuron) result(error)
-        type(fnn_neuron), pointer :: neuron
+   integer(kind=ik) function deallocate_neuron(neuron) result(error)
+      type(fnn_neuron), pointer :: neuron
 
-        ! Local vars
-        integer status
+      ! Local vars
+      integer status
 
-        ! Initialize error
-        error = 0
+      ! Initialize error
+      error = 0
 
-        ! If neuron is not allocated, return
-        if (.not. neuron%allocated) return
+      ! If neuron is not allocated, return
+      if (.not. neuron%allocated) return
 
-        ! Allocate weights
-        if (allocated(neuron%weights)) deallocate (neuron%weights, stat=status)
-        if (status /= 0) error = status
+      ! Allocate weights
+      if (allocated(neuron%weights)) deallocate (neuron%weights, stat=status)
+      if (status /= 0) error = status
 
-        ! Set neuron state vars
-        neuron%allocated = .false.
-        neuron%initialized = .false.
+      ! Set neuron state vars
+      neuron%allocated = .false.
+      neuron%initialized = .false.
 
-        ! Set vars to zero
-        neuron%number_inputs = 0
-        neuron%z = 0d0
-        neuron%a = 0d0
-        
-        ! Nullify pointers
-        nullify (neuron%activation)
-        nullify (neuron%derivative_activation)
-        nullify (neuron)
-    end function deallocate_neuron
+      ! Set vars to zero
+      neuron%number_inputs = 0
+      neuron%z = 0d0
+      neuron%a = 0d0
 
-    integer(kind=ik) function initialize_neuron(neuron, number_inputs, activation, derivative_activation) result(error)
-        type(fnn_neuron), pointer :: neuron
-        integer(kind=ik), intent(in) :: number_inputs
-        procedure(fnn_activation_function), pointer :: activation
-        procedure(fnn_derivative_activation_function), pointer :: derivative_activation
+      ! Nullify pointers
+      nullify (neuron%activation)
+      nullify (neuron%derivative_activation)
+      nullify (neuron)
+   end function deallocate_neuron
 
-        ! Initialize error
-        error = 0
+   integer(kind=ik) function initialize_neuron(neuron, number_inputs, activation, derivative_activation) result(error)
+      type(fnn_neuron), pointer :: neuron
+      integer(kind=ik), intent(in) :: number_inputs
+      procedure(fnn_activation_function), pointer :: activation
+      procedure(fnn_derivative_activation_function), pointer :: derivative_activation
 
-        ! Check if neuron is allocated
-        if (.not. neuron%allocated) then
-            error = 1
-            return
-        end if
+      ! Initialize error
+      error = 0
 
-        ! Initialize neuron parameters
-        neuron%number_inputs = number_inputs
-        allocate (neuron%weights(number_inputs), stat=error)
-        if (error /= 0) return
-        call random_seed()
-        call random_number(neuron%weights)
+      ! Check if neuron is allocated
+      if (.not. neuron%allocated) then
+         error = 1
+         return
+      end if
 
-        ! Point activation and derivative_activaton function
-        neuron%activation => activation
-        neuron%derivative_activation => derivative_activation
+      ! Initialize neuron parameters
+      neuron%number_inputs = number_inputs
+      allocate (neuron%weights(number_inputs), stat=error)
+      if (error /= 0) return
+      call random_seed()
+      call random_number(neuron%weights)
 
-        ! Set initialized neuron state variable to true
-        neuron%initialized = .true.
+      ! Point activation and derivative_activaton function
+      neuron%activation => activation
+      neuron%derivative_activation => derivative_activation
 
-    end function initialize_neuron
+      ! Set initialized neuron state variable to true
+      neuron%initialized = .true.
 
-    integer(kind=ik) function activation_neuron(neuron, n_inputs, inputs) result(error)
-        type(fnn_neuron), pointer :: neuron
-        integer(kind=ik), intent(in) :: n_inputs
-        real(kind=rk), pointer :: inputs(:)
-        integer i
+   end function initialize_neuron
 
-        ! Initialize vars
-        error = 0
+   integer(kind=ik) function activation_neuron(neuron, n_inputs, inputs) result(error)
+      type(fnn_neuron), pointer :: neuron
+      integer(kind=ik), intent(in) :: n_inputs
+      real(kind=rk), pointer :: inputs(:)
+      integer i
 
-        ! If neuron is not allocated, return with error.
-        if (.not. neuron%allocated) then
-            error = 1
-            return
-        end if
+      ! Initialize vars
+      error = 0
 
-        ! If neuron is not initialized, return with error.
-        if (.not. neuron%initialized) then
-            error = 1
-            return
-        end if
+      ! If neuron is not allocated, return with error.
+      if (.not. neuron%allocated) then
+         error = 1
+         return
+      end if
 
-        ! If number of inputs is not the same that the neuron, error
-        if (n_inputs /= neuron%number_inputs) then
-            error = 1
-            return
-        end if
+      ! If neuron is not initialized, return with error.
+      if (.not. neuron%initialized) then
+         error = 1
+         return
+      end if
 
-        ! If not associated inputs, error
-        if (.not. associated(inputs)) then
-            error = 1
-            return
-        end if
+      ! If number of inputs is not the same that the neuron, error
+      if (n_inputs /= neuron%number_inputs) then
+         error = 1
+         return
+      end if
 
-        ! Compute z
-        neuron%z = dot_product(neuron%weights, inputs)
+      ! If not associated inputs, error
+      if (.not. associated(inputs)) then
+         error = 1
+         return
+      end if
 
-        ! Apply activation function
-        neuron%a = neuron%activation(neuron%z)
+      ! Compute z
+      neuron%z = dot_product(neuron%weights, inputs)
 
-    end function activation_neuron
+      ! Apply activation function
+      neuron%a = neuron%activation(neuron%z)
 
-    integer(kind=ik) function update_neuron(neuron, grad_cost, n_inputs, learning_rate) result(error)
-        type(fnn_neuron), pointer :: neuron
-        real(kind=rk), pointer :: grad_cost(:)
-        integer(kind=ik), intent(in) :: n_inputs
-        real(kind=rk), intent(in) :: learning_rate
-        integer i
+   end function activation_neuron
 
-        ! Initialize error
-        error = 0
+   integer(kind=ik) function update_neuron(neuron, grad_cost, n_inputs, learning_rate) result(error)
+      type(fnn_neuron), pointer :: neuron
+      real(kind=rk), pointer :: grad_cost(:)
+      integer(kind=ik), intent(in) :: n_inputs
+      real(kind=rk), intent(in) :: learning_rate
+      integer i
 
-        ! If neuron is not allocated, return with error.
-        if (.not. neuron%allocated) then
-            error = 1
-            return
-        end if
+      ! Initialize error
+      error = 0
 
-        ! If neuron is not initialized, return with error.
-        if (.not. neuron%initialized) then
-            error = 1
-            return
-        end if
+      ! If neuron is not allocated, return with error.
+      if (.not. neuron%allocated) then
+         error = 1
+         return
+      end if
 
-        ! If the number of inputs of the samples array does not correspond to the number of inputs of the neuron, return with an error.
-        if (n_inputs /= neuron%number_inputs) then
-            error = 1
-            return
-        end if
+      ! If neuron is not initialized, return with error.
+      if (.not. neuron%initialized) then
+         error = 1
+         return
+      end if
 
-        ! Check that grad_cost is correctly allocated and has the correct size
-        if (.not. associated(grad_cost)) then
-            error = 1
-            return
-        end if
+      ! If the number of inputs of the samples array does not correspond to the number of inputs of the neuron, return with an error.
+      if (n_inputs /= neuron%number_inputs) then
+         error = 1
+         return
+      end if
 
-        if (size(grad_cost) /= n_inputs) then
-            error = 1
-            return
-        end if
+      ! Check that grad_cost is correctly allocated and has the correct size
+      if (.not. associated(grad_cost)) then
+         error = 1
+         return
+      end if
 
-        ! Update the weights:
-        neuron%weights(:) = neuron%weights(:) - learning_rate * grad_cost(:)
-        
-    end function update_neuron
+      if (size(grad_cost) /= n_inputs) then
+         error = 1
+         return
+      end if
 
-    subroutine print_neuron(neuron, padding)
-        type(fnn_neuron), pointer :: neuron
-        integer(kind=ik), intent(in) :: padding
-        integer :: i
+      ! Update the weights:
+      neuron%weights(:) = neuron%weights(:) - learning_rate*grad_cost(:)
 
-        ! Print the opening bracket for the neuron
-        write (*, '(A)') repeat(' ', padding)//"["
+   end function update_neuron
 
-        ! Print the weights
-        write (*, '(A)') repeat(' ', padding + 5)//"w = ["
-        do i = 1, neuron%number_inputs
-           write (*, '(A, F12.5)') repeat(' ', padding + 10), neuron%weights(i)
-        end do
-        write (*, '(A)') repeat(' ', padding + 5)//"]"
+   subroutine print_neuron(neuron, padding)
+      type(fnn_neuron), pointer :: neuron
+      integer(kind=ik), intent(in) :: padding
+      integer :: i
 
-        write (*, '(A, F12.5)') repeat(' ', padding + 5)//"z = ", neuron%z
-        write (*, '(A, F12.5)') repeat(' ', padding + 5)//"a = ", neuron%a
-        
-        ! Print the closing bracket for the neuron
-        write (*, '(A)') repeat(' ', padding)//"]"
-    end subroutine print_neuron
-    !------ End Neuron procedures ------
+      ! Print the opening bracket for the neuron
+      write (*, '(A)') repeat(' ', padding)//"["
 
-    !------ Layer procedures ------
-    integer(kind=ik) function allocate_layer(layer) result(error)
-        type(fnn_layer), pointer :: layer
-        integer(kind=ik) :: status
+      ! Print the weights
+      write (*, '(A)') repeat(' ', padding + 5)//"w = ["
+      do i = 1, neuron%number_inputs
+         write (*, '(A, F12.5)') repeat(' ', padding + 10), neuron%weights(i)
+      end do
+      write (*, '(A)') repeat(' ', padding + 5)//"]"
 
-        error = 0 ! Error initialization
+      write (*, '(A, F12.5)') repeat(' ', padding + 5)//"z = ", neuron%z
+      write (*, '(A, F12.5)') repeat(' ', padding + 5)//"a = ", neuron%a
 
-        ! Allocate layer
-        nullify (layer)
-        allocate (layer, stat=status)
-        if (status /= 0) then
-            error = status
-            return
-        end if
+      ! Print the closing bracket for the neuron
+      write (*, '(A)') repeat(' ', padding)//"]"
+   end subroutine print_neuron
+   !------ End Neuron procedures ------
 
-        ! Inputs
-        layer%number_inputs = 0
+   !------ Layer procedures ------
+   integer(kind=ik) function allocate_layer(layer) result(error)
+      type(fnn_layer), pointer :: layer
+      integer(kind=ik) :: status
 
-        ! Allocate layer neurons
-        layer%number_neurons = 0
-        if (allocated(layer%neurons)) deallocate (layer%neurons, stat=status)
-        if (status /= 0) then
-            error = status
-            return
-        end if
-        
-        ! Nullify procedure pointers
-        nullify (layer%activation)
-        nullify (layer%derivative_activation)
-        layer%allocated = .true.
-        layer%initialized = .false.
+      error = 0 ! Error initialization
 
-    end function allocate_layer
+      ! Allocate layer
+      nullify (layer)
+      allocate (layer, stat=status)
+      if (status /= 0) then
+         error = status
+         return
+      end if
 
-    integer(kind=ik) function deallocate_layer(layer) result(error)
-        type(fnn_layer), pointer :: layer
+      ! Inputs
+      layer%number_inputs = 0
 
-        ! Local vars
-        integer(kind=ik) i
+      ! Allocate layer neurons
+      layer%number_neurons = 0
+      if (allocated(layer%neurons)) deallocate (layer%neurons, stat=status)
+      if (status /= 0) then
+         error = status
+         return
+      end if
 
-        ! Initialize error
-        error = 0
+      ! Nullify procedure pointers
+      nullify (layer%activation)
+      nullify (layer%derivative_activation)
+      layer%allocated = .true.
+      layer%initialized = .false.
 
-        ! If layer is not allocated simply return
-        if ( .not. layer%allocated ) return
+   end function allocate_layer
 
-        ! Deallocate arrays
-        if (allocated(layer%neurons)) then
-            do i=1, layer%number_neurons
-               error = deallocate_neuron(layer%neurons(i)%neuron)
-               if (error /= 0) return
-            enddo
-            deallocate(layer%neurons, stat=error)
+   integer(kind=ik) function deallocate_layer(layer) result(error)
+      type(fnn_layer), pointer :: layer
+
+      ! Local vars
+      integer(kind=ik) i
+
+      ! Initialize error
+      error = 0
+
+      ! If layer is not allocated simply return
+      if (.not. layer%allocated) return
+
+      ! Deallocate arrays
+      if (allocated(layer%neurons)) then
+         do i = 1, layer%number_neurons
+            error = deallocate_neuron(layer%neurons(i)%neuron)
             if (error /= 0) return
-        endif
+         end do
+         deallocate (layer%neurons, stat=error)
+         if (error /= 0) return
+      end if
 
-        ! Initialize integers
-        layer%number_inputs = 0
-        layer%number_neurons = 0
+      ! Initialize integers
+      layer%number_inputs = 0
+      layer%number_neurons = 0
 
-        ! Initialize logicals
-        layer%allocated = .false.
-        layer%initialized = .false.       
+      ! Initialize logicals
+      layer%allocated = .false.
+      layer%initialized = .false.
 
-        ! nullify procedure pointers
-        nullify(layer%activation, layer%derivative_activation)
+      ! nullify procedure pointers
+      nullify (layer%activation, layer%derivative_activation)
 
-    end function deallocate_layer
+   end function deallocate_layer
 
-    integer(kind=ik) function initialize_layer(layer, number_inputs, number_neurons, activation, derivative_activation) result(error)
-        type(fnn_layer), pointer :: layer
-        integer, intent(in) :: number_inputs, number_neurons
-        procedure(fnn_activation_function), pointer :: activation
-        procedure(fnn_derivative_activation_function), pointer :: derivative_activation        
+   integer(kind=ik) function initialize_layer(layer, number_inputs, number_neurons, activation, derivative_activation) result(error)
+      type(fnn_layer), pointer :: layer
+      integer, intent(in) :: number_inputs, number_neurons
+      procedure(fnn_activation_function), pointer :: activation
+      procedure(fnn_derivative_activation_function), pointer :: derivative_activation
 
-        ! Local vars
-        integer(kind=ik) i
+      ! Local vars
+      integer(kind=ik) i
 
-        ! Initialize error
-        error = 0
+      ! Initialize error
+      error = 0
 
-        ! If layer is not allocated, return
-        if (.not. layer%allocated) then
-            error = 1
-            return
-        endif
+      ! If layer is not allocated, return
+      if (.not. layer%allocated) then
+         error = 1
+         return
+      end if
 
-        ! Point to the activation functions of the layer
-        layer%activation => activation
-        layer%derivative_activation => derivative_activation
+      ! Point to the activation functions of the layer
+      layer%activation => activation
+      layer%derivative_activation => derivative_activation
 
-        ! Inputs
-        layer%number_inputs = number_inputs
+      ! Inputs
+      layer%number_inputs = number_inputs
 
-        ! Number neurons
-        layer%number_neurons = number_neurons
-        if (allocated(layer%neurons)) deallocate(layer%neurons, stat=error)
-        if (error /= 0) return
-        allocate(layer%neurons(layer%number_neurons), stat=error)
-        if (error /= 0) return
-        do i=1, layer%number_neurons
-           error = allocate_neuron(layer%neurons(i)%neuron)
-           if (error /= 0) return
-           error = initialize_neuron(layer%neurons(i)%neuron, number_inputs, activation, derivative_activation)
-           if (error /= 0) return
-        enddo
+      ! Number neurons
+      layer%number_neurons = number_neurons
+      if (allocated(layer%neurons)) deallocate (layer%neurons, stat=error)
+      if (error /= 0) return
+      allocate (layer%neurons(layer%number_neurons), stat=error)
+      if (error /= 0) return
+      do i = 1, layer%number_neurons
+         error = allocate_neuron(layer%neurons(i)%neuron)
+         if (error /= 0) return
+         error = initialize_neuron(layer%neurons(i)%neuron, number_inputs, activation, derivative_activation)
+         if (error /= 0) return
+      end do
 
-        ! Once every task is done, set the initialized variable to true.
-        layer%initialized = .true.
+      ! Once every task is done, set the initialized variable to true.
+      layer%initialized = .true.
 
-    end function initialize_layer
+   end function initialize_layer
 
-    integer(kind=ik) function activations_layer(layer, activations, n_inputs, inputs) result(error)
-        type(fnn_layer), pointer :: layer
-        real(kind=rk), pointer :: activations(:) !layer%number_neurons length
-        integer(kind=ik), intent(in) :: n_inputs
-        real(kind=rk), pointer :: inputs(:)
+   integer(kind=ik) function activations_layer(layer, activations, n_inputs, inputs) result(error)
+      type(fnn_layer), pointer :: layer
+      real(kind=rk), pointer :: activations(:) !layer%number_neurons length
+      integer(kind=ik), intent(in) :: n_inputs
+      real(kind=rk), pointer :: inputs(:)
 
-        ! Local vars
-        integer(kind=ik) ineuron
-        type(fnn_neuron), pointer :: neuron
+      ! Local vars
+      integer(kind=ik) ineuron
+      type(fnn_neuron), pointer :: neuron
 
-        ! Nullify
-        nullify(neuron)
+      ! Nullify
+      nullify (neuron)
 
-        ! Initialize error
-        error = 0
+      ! Initialize error
+      error = 0
 
-        ! Check if layer is allocated
-        if (.not. layer%allocated) then
-            error = 1
-            return
-        endif
+      ! Check if layer is allocated
+      if (.not. layer%allocated) then
+         error = 1
+         return
+      end if
 
-        ! Check if layer is initialized
-        if (.not. layer%initialized) then
-            error = 1
-            return
-        endif
+      ! Check if layer is initialized
+      if (.not. layer%initialized) then
+         error = 1
+         return
+      end if
 
-        ! Check if n_inputs is the same that layer number_inputs
-        if (n_inputs /= layer%number_inputs) then
-            error = 1
-            return
-        endif
-        
-        ! Loop over neurons to compute prediction
-        do ineuron = 1, layer%number_neurons
-           neuron => layer%neurons(ineuron)%neuron
-           error = activation_neuron(neuron, layer%number_inputs, inputs)
-           if ( error /= 0 ) return
-           activations(ineuron) = neuron%a
-        enddo
+      ! Check if n_inputs is the same that layer number_inputs
+      if (n_inputs /= layer%number_inputs) then
+         error = 1
+         return
+      end if
 
-        ! Nullify
-        nullify(neuron)        
+      ! Loop over neurons to compute prediction
+      do ineuron = 1, layer%number_neurons
+         neuron => layer%neurons(ineuron)%neuron
+         error = activation_neuron(neuron, layer%number_inputs, inputs)
+         if (error /= 0) return
+         activations(ineuron) = neuron%a
+      end do
 
-    end function activations_layer
+      ! Nullify
+      nullify (neuron)
 
-    integer(kind=ik) function update_layer(layer, grad_cost, n_inputs, learning_rate) result(error)
-        type(fnn_layer), pointer :: layer
-        real(kind=rk), pointer :: grad_cost(:)
-        integer(kind=ik), intent(in) :: n_inputs
-        real(kind=rk), intent(in) :: learning_rate
+   end function activations_layer
 
-        ! Local var
-        integer(kind=ik) :: ineuron
+   integer(kind=ik) function update_layer(layer, grad_cost, n_inputs, learning_rate) result(error)
+      type(fnn_layer), pointer :: layer
+      real(kind=rk), pointer :: grad_cost(:)
+      integer(kind=ik), intent(in) :: n_inputs
+      real(kind=rk), intent(in) :: learning_rate
 
-        ! Initialize error
-        error = 0
+      ! Local var
+      integer(kind=ik) :: ineuron
 
-        ! Check if layer is allocated
-        if (.not. layer%allocated) then
-            error = 1
-            return
-        endif
+      ! Initialize error
+      error = 0
 
-        ! Check if layer is initialized
-        if (.not. layer%initialized) then
-            error = 1
-            return
-        endif
+      ! Check if layer is allocated
+      if (.not. layer%allocated) then
+         error = 1
+         return
+      end if
 
-        ! Check if n_inputs is the same that layer number_inputs
-        if (n_inputs /= layer%number_inputs) then
-            error = 1
-            return
-        endif        
+      ! Check if layer is initialized
+      if (.not. layer%initialized) then
+         error = 1
+         return
+      end if
 
-        ! Loop over each neuron and update
-        do ineuron = 1, layer%number_neurons
-           error = update_neuron(layer%neurons(ineuron)%neuron, grad_cost, n_inputs, learning_rate)
-        enddo
+      ! Check if n_inputs is the same that layer number_inputs
+      if (n_inputs /= layer%number_inputs) then
+         error = 1
+         return
+      end if
 
-    end function update_layer
-    
-    subroutine print_layer(layer, padding)
-        type(fnn_layer), pointer :: layer
-        integer(kind=ik), intent(in) :: padding
+      ! Loop over each neuron and update
+      do ineuron = 1, layer%number_neurons
+         error = update_neuron(layer%neurons(ineuron)%neuron, grad_cost, n_inputs, learning_rate)
+      end do
 
-        ! Local var
-        integer(kind=ik) ineuron
-        type(fnn_neuron), pointer :: neuron
+   end function update_layer
 
-        ! Nullify local pointers
-        nullify(neuron)
-        
-        ! Print the opening bracket for the neuron
-        write (*, '(A)') repeat(' ', padding)//"Layer: ["
-        do ineuron = 1, layer%number_neurons
-           neuron => layer%neurons(ineuron)%neuron
-           call print_neuron(neuron, padding + 4)
-        enddo
-        write(*, '(A)') repeat(' ', padding)//"]"
+   subroutine print_layer(layer, padding)
+      type(fnn_layer), pointer :: layer
+      integer(kind=ik), intent(in) :: padding
 
-        ! Nullify local pointers
-        nullify(neuron)
-        
-    end subroutine print_layer
-    !------ End Layer procedures ------
+      ! Local var
+      integer(kind=ik) ineuron
+      type(fnn_neuron), pointer :: neuron
 
-    !------ Network procedures -------
-    !------ End Network procedures ------
+      ! Nullify local pointers
+      nullify (neuron)
 
-    !------ Public procedures of the neural network ------
-    integer(kind=ik) function fnn_net(network) result(error)
-        type(fnn_network), pointer :: network
-        error = 0
-    end function fnn_net
+      ! Print the opening bracket for the neuron
+      write (*, '(A)') repeat(' ', padding)//"Layer: ["
+      do ineuron = 1, layer%number_neurons
+         neuron => layer%neurons(ineuron)%neuron
+         call print_neuron(neuron, padding + 4)
+      end do
+      write (*, '(A)') repeat(' ', padding)//"]"
 
-    integer(kind=ik) function fnn_add(network) result(error)
-        type(fnn_network), pointer :: network
-        error = 0
-    end function fnn_add
+      ! Nullify local pointers
+      nullify (neuron)
 
-    integer(kind=ik) function fnn_compile(network) result(error)
-        type(fnn_network), pointer :: network
-        error = 0
-    end function fnn_compile
+   end subroutine print_layer
+   !------ End Layer procedures ------
+
+   !------ Network procedures -------
+   integer(kind=ik) function allocate_network(network) result(error)
+      type(fnn_network), pointer :: network
+
+      ! Initialize error
+      error = 0
+
+      ! Nullify and allocate network
+      nullify (network)
+      allocate (network, stat=error)
+      if (error /= 0) return
+
+      ! Initialize scalars
+      network%number_inputs = 0
+      network%number_layers = 0
+
+      ! Free Network memory
+      if (allocated(network%layers)) deallocate (network%layers, stat=error)
+      if (error /= 0) return
+
+      ! Set state vars
+      network%allocated = .true.
+      network%initialized = .false.
+
+   end function allocate_network
+
+   integer(kind=ik) function deallocate_network(network) result(error)
+      type(fnn_network), pointer :: network
+
+      ! Initialize error
+      error = 0
+
+      ! Free network memory:
+      if (allocated(network%layers)) deallocate (network%layers, stat=error)
+      if (error /= 0) return
+
+      ! Set scalars to zero
+      network%number_inputs = 0
+      network%number_layers = 0
+
+      ! Set status variables to false
+      network%allocated = .false.
+      network%initialized = .false.
+
+      ! Free memory
+      if (associated(network)) deallocate (network, stat=error)
+      if (error /= 0) return
+
+      ! Nullify network pointer
+      nullify (network)
+
+   end function deallocate_network
+
+   integer(kind=ik) function initialize_network(network, number_inputs, number_layers) result(error)
+      type(fnn_network), pointer :: network
+      integer(kind=ik), intent(in) :: number_inputs, number_layers
+
+      ! Local vars
+      integer(kind=ik) ilayer
+
+      ! Initialize error
+      error = 0
+
+      ! Check if network is allcoated
+      if (.not. associated(network)) then
+         error = 1
+         return
+      end if
+
+      ! Save scalars
+      network%number_inputs = number_inputs
+      network%number_layers = number_layers
+
+      ! Reserve memory
+      allocate (network%layers(number_layers), stat=error)
+      if (error /= 0) return
+
+      ! Nullify pointers of layers
+      do ilayer = 1, network%number_layers
+         nullify (network%layers(ilayer)%layer)
+      end do
+
+   end function initialize_network
+
+  integer(kind=ik) function add_layer_to_network(network, layer_id, number_neurons, activation, derivative_activation) result(error)
+      type(fnn_network), pointer :: network
+      integer(kind=ik), intent(in) :: layer_id, number_neurons
+      procedure(fnn_activation_function), pointer :: activation
+      procedure(fnn_derivative_activation_function), pointer :: derivative_activation
+
+      ! Initialize error
+      error = 0
+
+      ! If network is not initialized return with error
+      if (.not. network%initialized) then
+         error = 1
+         return
+      end if
+
+      ! If layer_id is not > 0 return with error
+      if (layer_id < 1) then
+         error = 2
+         return
+      end if
+
+      ! Add the layer
+       !! If layer is already associated, then return with error
+      if (associated(network%layers(layer_id)%layer)) then
+         error = 3
+         return
+      end if
+      error = allocate_layer(network%layers(layer_id)%layer)
+      if (error /= 0) return
+
+      ! If it is first layer, initialize with number of inputs
+      ! else it is not the first layer, initialize with number of inputs
+      ! equal to number of neurons of layer_id - 1
+      if (layer_id == 1) then
+  error = initialize_layer(network%layers(layer_id)%layer, network%number_inputs, number_neurons, activation, derivative_activation)
+         if (error /= 0) return
+      else
+           error = initialize_layer(network%layers(layer_id)%layer, network%layers(layer_id - 1)%layer%number_neurons, number_neurons, activation, derivative_activation)
+         if (error /= 0) return
+      end if
+
+   end function add_layer_to_network
+
+   !------ End Network procedures ------
+
+   !------ Public procedures of the neural network ------
+   integer(kind=ik) function fnn_net(network) result(error)
+      type(fnn_network), pointer :: network
+      error = 0
+   end function fnn_net
+
+   integer(kind=ik) function fnn_add(network) result(error)
+      type(fnn_network), pointer :: network
+      error = 0
+   end function fnn_add
+
+   integer(kind=ik) function fnn_compile(network) result(error)
+      type(fnn_network), pointer :: network
+      error = 0
+   end function fnn_compile
 
 end module FortranNeuralNetwork
