@@ -13,7 +13,7 @@ module FortranNeuralNetwork
    public :: fnn_net, fnn_add, fnn_compile
 
    ! temporal public network
-   public :: allocate_network, deallocate_network, initialize_network, add_layer_to_network, activate_network, print_network
+   public :: fnn_network, allocate_network, deallocate_network, initialize_network, add_layer_to_network, activate_network, print_network
 
    !------ Activation function interface ------
    interface
@@ -72,7 +72,7 @@ module FortranNeuralNetwork
    type fnn_network
       logical :: allocated = .false.
       logical :: initialized = .false.
-      integer(kind=ik) :: number_inputs, number_layers
+      integer(kind=ik) :: number_inputs, number_layers, max_number_neurons
       type(fnn_layer_pointer), allocatable :: layers(:)
    end type fnn_network
    !------ End Network type definition -------
@@ -549,6 +549,7 @@ contains
       ! Initialize scalars
       network%number_inputs = 0
       network%number_layers = 0
+      network%max_number_neurons = 0
 
       ! Free Network memory
       if (allocated(network%layers)) deallocate (network%layers, stat=error)
@@ -573,6 +574,7 @@ contains
       ! Set scalars to zero
       network%number_inputs = 0
       network%number_layers = 0
+      network%max_number_neurons = 0
 
       ! Set status variables to false
       network%allocated = .false.
@@ -606,6 +608,7 @@ contains
       ! Save scalars
       network%number_inputs = number_inputs
       network%number_layers = number_layers
+      network%max_number_neurons = 0
 
       ! Reserve memory
       allocate (network%layers(number_layers), stat=error)
@@ -616,6 +619,9 @@ contains
          nullify (network%layers(ilayer)%layer)
       end do
 
+      ! Set initialize state to true
+      network%initialized = .true.
+      
    end function initialize_network
 
   integer(kind=ik) function add_layer_to_network(network, layer_id, number_neurons, activation, derivative_activation) result(error)
@@ -645,6 +651,10 @@ contains
          error = 3
          return
       end if
+
+      ! Check max number of neurons
+      if (number_neurons > network%max_number_neurons) network%max_number_neurons = number_neurons
+
       error = allocate_layer(network%layers(layer_id)%layer)
       if (error /= 0) return
 
@@ -661,6 +671,97 @@ contains
 
    end function add_layer_to_network
 
+   integer(kind=ik) function activate_network(network, predictions, n_inputs, inputs) result(error)
+      type(fnn_network), pointer :: network
+      real(kind=rk), pointer :: predictions(:)
+      integer(kind=ik), intent(in) :: n_inputs
+      real(kind=rk), pointer :: inputs(:)
+
+      ! Local vars
+      real(kind=rk), pointer :: activations(:)
+      real(kind=rk), pointer :: local_inputs(:)
+      integer(kind=ik) ilayer, local_number_neurons, local_number_inputs
+
+      ! Nullify local pointers
+      nullify (activations, local_inputs)
+
+      ! Initialize error
+      error = 0
+
+      ! Check if network is allocated and initialized
+      if ((.not. network%allocated) .or. (.not. network%initialized)) then
+         error = 1
+         return
+      end if
+
+      ! If n_inputs is different that first layer n_inputs exit with error
+      if (n_inputs /= network%layers(1)%layer%number_inputs) then
+         error = 2
+         return
+      end if
+
+      ! Check if predictions is associated
+      if (.not. associated(predictions)) then
+         error = 3
+         return
+      end if
+
+      ! Check if predictions array has the same size af the last layer number of layers
+      if (size(predictions) /= network%layers(network%number_layers)%layer%number_neurons) then
+         error = 4
+         return
+      end if
+
+      ! Check that the number of inputs is the same that the network first layer
+      if (n_inputs /= network%layers(1)%layer%number_inputs) then
+         error = 5
+         return
+      end if
+
+      ! Allocate activations array with the maximum number of neurons
+      allocate (activations(network%max_number_neurons), stat=error)
+      if (error /= 0) return
+
+      !Allocate local inputs with the maximum between n_inputs and max_number_neurons
+      allocate (local_inputs(max(n_inputs, network%max_number_neurons)), stat=error)
+      if (error /= 0) return
+
+      ! Initialize local_inputs
+      local_inputs(1:n_inputs) = inputs(1:n_inputs)
+
+      ! Compute the activations
+      do ilayer = 1, network%number_layers
+         local_number_inputs = network%layers(ilayer)%layer%number_inputs
+         local_number_neurons = network%layers(ilayer)%layer%number_neurons
+         error = activations_layer(network%layers(ilayer)%layer, activations, local_number_inputs, local_inputs)
+         local_inputs(1:local_number_neurons) = activations(1:local_number_neurons)
+      end do
+
+      ! Output
+      predictions(1:network%layers(network%number_layers)%layer%number_neurons) = &
+         activations(1:network%layers(network%number_layers)%layer%number_neurons)
+
+      ! Free memmory
+      if (associated(local_inputs)) deallocate (local_inputs, stat=error)
+      if (error /= 0) return
+      if (associated(activations)) deallocate (activations, stat=error)
+      if (error /= 0) return
+      nullify (local_inputs, activations)
+
+   end function activate_network
+
+   subroutine print_network(network)
+       type(fnn_network), pointer :: network
+
+       ! Local vars
+       integer(kind=ik) ilayer
+
+      write (*, '(A)') "Network: ["
+      do ilayer = 1, network%number_layers
+         call print_layer(network%layers(ilayer)%layer, 4)
+      end do
+      write (*, '(A)') "]"
+   end subroutine print_network
    !------ End Network procedures ------
 
    !------ Public procedures of the neural network ------
