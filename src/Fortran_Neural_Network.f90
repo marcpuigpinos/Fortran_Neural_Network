@@ -7,7 +7,10 @@ module FortranNeuralNetwork
    private
 
    ! Activation functions public interfaces
-    public :: fnn_activation_function, fnn_derivative_activation_function, fnn_sigmoid, fnn_ReLU, fnn_derivative_sigmoid, fnn_derivative_ReLU
+   public :: fnn_activation_function, fnn_derivative_activation_function, fnn_sigmoid, fnn_ReLU, fnn_derivative_sigmoid, fnn_derivative_ReLU
+
+   ! Cost functions public interfaces
+   public :: fnn_cost_MSE
 
    !  public interfaces
    public :: fnn_net, fnn_add, fnn_compile
@@ -106,6 +109,37 @@ contains
    end function fnn_derivative_ReLU
    !------ End Derivative activation functions ------
 
+   !------ Cost functions ------
+   real(kind=rk) function fnn_cost_MSE(yp, y, n_predictions, n_samples) result(c)
+       real(kind=rk), pointer :: yp(:,:), y(:,:) ! Arrays n_samples x n_predictions
+       integer(kind=ik), intent(in) :: n_predictions, n_samples
+
+       ! Local vars
+       real(kind=rk), allocatable :: diff(:)
+       integer(kind=ik) i_sample
+
+       ! Initialie cost
+       c = 0d0
+       
+       ! Reserve memory
+       allocate(diff(n_predictions))
+
+       ! Loop over samples
+       do i_sample = 1, n_samples
+          diff = yp(i_sample,:) - y(i_sample,:)
+          c = c + dot_product(diff, diff)
+       enddo
+
+       ! Average cost
+       c = 0.5d0 * c / n_samples
+
+       !Free memory
+       deallocate(diff)
+       
+   end function fnn_MSE
+   
+   !------ End cost functions ------
+   
    !------ Neuron procedures ------
    integer(kind=ik) function allocate_neuron(neuron) result(error)
       type(fnn_neuron), pointer :: neuron
@@ -764,6 +798,9 @@ contains
    end subroutine print_network
    !------ End Network procedures ------
 
+   !----- Network cost function -------
+   !----- End Network cost function ---------
+   
    !------ Public procedures of the neural network ------
    integer(kind=ik) function fnn_net(network) result(error)
       type(fnn_network), pointer :: network
