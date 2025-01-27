@@ -136,7 +136,7 @@ contains
        !Free memory
        deallocate(diff)
        
-   end function fnn_MSE
+   end function fnn_cost_MSE
    
    !------ End cost functions ------
    
