@@ -239,7 +239,7 @@ contains
       end if
 
       ! Compute z
-      neuron%z = dot_product(neuron%weights, inputs)
+      neuron%z = dot_product(neuron%weights(1:neuron%number_inputs), inputs(1:neuron%number_inputs))
 
       ! Apply activation function
       neuron%a = neuron%activation(neuron%z)

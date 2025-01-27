@@ -18,8 +18,8 @@ program main
    nullify (inputs)
    allocate (inputs(number_inputs))
    inputs(1) = 1.0
-   inputs(2) = 1.0
-   inputs(3) = 1.0
+   inputs(2) = 5.0
+   inputs(3) = -3.0
 
    ! Allocate network
    error = allocate_network(network)
@@ -30,12 +30,12 @@ program main
    ! Add first layer
    activation => fnn_ReLU
    derivative_activation => fnn_derivative_ReLU
-   error = add_layer_to_network(network, 1, 4, activation, derivative_activation)
+   error = add_layer_to_network(network, 1, 5, activation, derivative_activation)
    
    ! Add second layer
    activation => fnn_ReLU
    derivative_activation => fnn_derivative_ReLU
-   error = add_layer_to_network(network, 2, 2, activation, derivative_activation)
+   error = add_layer_to_network(network, 2, 20, activation, derivative_activation)
    
    ! Add third layer
    activation => fnn_sigmoid
