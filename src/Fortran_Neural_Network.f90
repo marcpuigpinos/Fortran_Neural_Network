@@ -82,7 +82,7 @@ module FortranNeuralNetwork
    logical :: alloc = .false.
    logical :: init = .false.
    integer :: layer_id = 0
-   
+
 contains
 
    !------ Activation functions ------
@@ -114,35 +114,35 @@ contains
 
    !------ Cost functions ------
    real(kind=rk) function fnn_cost_MSE(yp, y, n_predictions, n_samples) result(c)
-       real(kind=rk), pointer :: yp(:,:), y(:,:) ! Arrays n_samples x n_predictions
-       integer(kind=ik), intent(in) :: n_predictions, n_samples
+      real(kind=rk), pointer :: yp(:, :), y(:, :) ! Arrays n_samples x n_predictions
+      integer(kind=ik), intent(in) :: n_predictions, n_samples
 
-       ! Local vars
-       real(kind=rk), allocatable :: diff(:)
-       integer(kind=ik) i_sample
+      ! Local vars
+      real(kind=rk), allocatable :: diff(:)
+      integer(kind=ik) i_sample
 
-       ! Initialie cost
-       c = 0d0
-       
-       ! Reserve memory
-       allocate(diff(n_predictions))
+      ! Initialie cost
+      c = 0d0
 
-       ! Loop over samples
-       do i_sample = 1, n_samples
-          diff = yp(i_sample,:) - y(i_sample,:)
-          c = c + dot_product(diff, diff)
-       enddo
+      ! Reserve memory
+      allocate (diff(n_predictions))
 
-       ! Average cost
-       c = 0.5d0 * c / n_samples
+      ! Loop over samples
+      do i_sample = 1, n_samples
+         diff = yp(i_sample, :) - y(i_sample, :)
+         c = c + dot_product(diff, diff)
+      end do
 
-       !Free memory
-       deallocate(diff)
-       
+      ! Average cost
+      c = 0.5d0*c/n_samples
+
+      !Free memory
+      deallocate (diff)
+
    end function fnn_cost_MSE
-   
+
    !------ End cost functions ------
-   
+
    !------ Neuron procedures ------
    integer(kind=ik) function allocate_neuron(neuron) result(error)
       type(fnn_neuron), pointer :: neuron
@@ -658,7 +658,7 @@ contains
 
       ! Set initialize state to true
       network%initialized = .true.
-      
+
    end function initialize_network
 
   integer(kind=ik) function add_layer_to_network(network, layer_id, number_neurons, activation, derivative_activation) result(error)
@@ -788,10 +788,10 @@ contains
    end function activate_network
 
    subroutine print_network(network)
-       type(fnn_network), pointer :: network
+      type(fnn_network), pointer :: network
 
-       ! Local vars
-       integer(kind=ik) ilayer
+      ! Local vars
+      integer(kind=ik) ilayer
 
       write (*, '(A)') "Network: ["
       do ilayer = 1, network%number_layers
@@ -803,121 +803,121 @@ contains
 
    !----- Network cost function -------
    !----- End Network cost function ---------
-   
+
    !------ Public procedures of the neural network ------
    integer(kind=ik) function fnn_net(number_inputs, number_layers) result(error)
-       integer(kind=ik), intent(in) :: number_inputs, number_layers
+      integer(kind=ik), intent(in) :: number_inputs, number_layers
 
-       ! Initialize error
-       error = 0
+      ! Initialize error
+      error = 0
 
-       ! Allocate memory
-       if (alloc) then
-           if (associated(net)) error = deallocate_network(net)
-           alloc = .false.
-           init = .false.
-           if (error /= 0) then
-               nullify(net)
-               return
-           endif
-       endif
-       nullify(net)
-       error = allocate_network(net)
-       if ( error /= 0 ) then
-           nullify(net)
-           return
-       endif
-       alloc = .true.
+      ! Allocate memory
+      if (alloc) then
+         if (associated(net)) error = deallocate_network(net)
+         alloc = .false.
+         init = .false.
+         if (error /= 0) then
+            nullify (net)
+            return
+         end if
+      end if
+      nullify (net)
+      error = allocate_network(net)
+      if (error /= 0) then
+         nullify (net)
+         return
+      end if
+      alloc = .true.
 
-       ! Initialize network
-       error = initialize_network(net, number_inputs, number_layers)
-       if (error /= 0) return
-       init = .true.
+      ! Initialize network
+      error = initialize_network(net, number_inputs, number_layers)
+      if (error /= 0) return
+      init = .true.
 
-       ! Init layer id
-       layer_id = 0
-       
+      ! Init layer id
+      layer_id = 0
+
    end function fnn_net
 
    integer(kind=ik) function fnn_add(number_neurons, activation, derivative_activation) result(error)
-       integer(kind=ik), intent(in) :: number_neurons
-       procedure(fnn_activation_function), pointer :: activation
-       procedure(fnn_derivative_activation_function), pointer :: derivative_activation
-       
-       ! Initialize 
-       error = 0
+      integer(kind=ik), intent(in) :: number_neurons
+      procedure(fnn_activation_function), pointer :: activation
+      procedure(fnn_derivative_activation_function), pointer :: derivative_activation
 
-       ! If not alloc return with error 1
-       if ( .not. alloc ) then
-           error = 1
-           return
-       endif
+      ! Initialize
+      error = 0
 
-       ! If not init return with error 2
-       if ( .not. init ) then
-           error = 2
-           return
-       endif
-       
-       ! Add the layer
-       layer_id = layer_id + 1
-       error = add_layer_to_network(net, layer_id, number_neurons, activation, derivative_activation)
-       
+      ! If not alloc return with error 1
+      if (.not. alloc) then
+         error = 1
+         return
+      end if
+
+      ! If not init return with error 2
+      if (.not. init) then
+         error = 2
+         return
+      end if
+
+      ! Add the layer
+      layer_id = layer_id + 1
+      error = add_layer_to_network(net, layer_id, number_neurons, activation, derivative_activation)
+
    end function fnn_add
 
    integer(kind=ik) function fnn_predict(prediction_size, prediction, n_inputs, inputs) result(error)
-       integer(kind=ik), intent(out) :: prediction_size
-       real(kind=rk), pointer :: prediction(:)
-       integer(kind=ik), intent(in) :: n_inputs
-       real(kind=rk), pointer :: inputs(:)
-       
-       ! Initialize
-       error = 0
+      integer(kind=ik), intent(out) :: prediction_size
+      real(kind=rk), pointer :: prediction(:)
+      integer(kind=ik), intent(in) :: n_inputs
+      real(kind=rk), pointer :: inputs(:)
 
-       ! If not alloc return with error 1
-       if ( .not. alloc ) then
-           error = 1
-           return
-       endif
+      ! Initialize
+      error = 0
 
-       ! If not init return with error 2
-       if ( .not. init ) then
-           error = 2
-           return
-       endif
+      ! If not alloc return with error 1
+      if (.not. alloc) then
+         error = 1
+         return
+      end if
 
-       ! Check that inputs is associated
-       if ( .not. associated(inputs) ) then
-           error = 3
-           return
-       endif
+      ! If not init return with error 2
+      if (.not. init) then
+         error = 2
+         return
+      end if
 
-       ! Check that inputs size is equal to n_inputs
-       if ( size(inputs) /= n_inputs ) then
-           error = 4
-           return
-       endif
+      ! Check that inputs is associated
+      if (.not. associated(inputs)) then
+         error = 3
+         return
+      end if
 
-       ! Check that the n_inputs is the same net number of inputs
-       if ( n_inputs /= net%number_inputs ) then
-           error = 5
-           return
-       endif
-       
-       ! Allocate prediction and initialize
-       prediction_size = net%layers(net%number_layers)%layer%number_neurons
-       nullify(prediction)
-       allocate(prediction(prediction_size), stat=error)
-       prediction = 0d0
+      ! Check that inputs size is equal to n_inputs
+      if (size(inputs) /= n_inputs) then
+         error = 4
+         return
+      end if
 
-       ! Activate network
-       error = activate_network(net, prediction, n_inputs, inputs)
-       
+      ! Check that the n_inputs is the same net number of inputs
+      if (n_inputs /= net%number_inputs) then
+         error = 5
+         return
+      end if
+
+      ! Allocate prediction and initialize
+      prediction_size = net%layers(net%number_layers)%layer%number_neurons
+      nullify (prediction)
+      allocate (prediction(prediction_size), stat=error)
+      prediction = 0d0
+
+      ! Activate network
+      error = activate_network(net, prediction, n_inputs, inputs)
+
    end function fnn_predict
 
    subroutine fnn_print()
-       if ((.not. alloc) .or. (.not. init)) return
-       call print_network(net)
+      if ((.not. alloc) .or. (.not. init)) return
+      call print_network(net)
    end subroutine fnn_print
 
 end module FortranNeuralNetwork
