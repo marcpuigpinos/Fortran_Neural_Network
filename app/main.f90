@@ -5,59 +5,38 @@ program main
 
    implicit none
 
-   type(fnn_network), pointer :: network
-   integer(kind=int32) error, number_inputs, number_layers
-   real(kind=real64), pointer :: inputs(:), predictions(:)
+   integer error
    procedure(fnn_activation_function), pointer :: activation
-   procedure(fnn_derivative_activation_function), pointer :: derivative_activation
+   procedure(fnn_activation_function), pointer :: derivative_activation
+   real(kind=8), pointer :: inputs(:), prediction(:)
+   integer prediction_size
 
-   activation => fnn_ReLU
-   derivative_activation => fnn_derivative_ReLU
-   number_inputs = 3
-   number_layers = 3
-   nullify (inputs)
-   allocate (inputs(number_inputs))
-   inputs(1) = 1.0
-   inputs(2) = 5.0
-   inputs(3) = -3.0
-
-   ! Allocate network
-   error = allocate_network(network)
-
-   ! Initialize
-   error = initialize_network(network, number_inputs, number_layers)
-
-   ! Add first layer
-   activation => fnn_ReLU
-   derivative_activation => fnn_derivative_ReLU
-   error = add_layer_to_network(network, 1, 5, activation, derivative_activation)
-   
-   ! Add second layer
-   activation => fnn_ReLU
-   derivative_activation => fnn_derivative_ReLU
-   error = add_layer_to_network(network, 2, 20, activation, derivative_activation)
-   
-   ! Add third layer
    activation => fnn_sigmoid
    derivative_activation => fnn_derivative_sigmoid
-   error = add_layer_to_network(network, 3, 1, activation, derivative_activation)
 
-   ! activate network
-   nullify(predictions)
-   allocate(predictions(1))
-   error = activate_network(network, predictions, number_inputs, inputs)
+   ! error = fnn_net(number_inputs, number_layers)
+   ! error = fnn_add(number_neurons, activation, derivative_activation)
+   ! error = fnn_predict(prediction_size, prediction, n_inputs, inputs)
+   ! call fnn_print()
    
-   ! Print network
-   call print_network(network)
+   error = fnn_net(3, 1)
+   allocate(inputs(3))
+   inputs(1) = 5.0; inputs(2) = 2.1; inputs(3) = 6.7
+   error = fnn_add(1, activation, derivative_activation)
+   nullify(prediction)
+   error = fnn_predict(prediction_size, prediction, 3, inputs)
+   call fnn_print()
 
-   ! Print predictions
-   print *, "Predictions: ", predictions
+   error = fnn_net(4,2)
+   deallocate(inputs)
+   nullify(inputs)
+   allocate(inputs(4))
+   inputs(1) = 5.0; inputs(2) = 2.1; inputs(3) = 6.7; inputs(4) = -5.0
+   error = fnn_add(3, activation, derivative_activation)
+   error = fnn_add(2, activation, derivative_activation)
+   deallocate(prediction)
+   nullify(prediction)
+   error = fnn_predict(prediction_size, prediction, 4, inputs)
+   call fnn_print()
    
-   ! Deallocate network
-   error = deallocate_network(network)
-
-   deallocate (inputs)
-   deallocate (predictions)
-   nullify (inputs, predictions)
-
 end program main

@@ -13,10 +13,7 @@ module FortranNeuralNetwork
    public :: fnn_cost_MSE
 
    !  public interfaces
-   public :: fnn_net, fnn_add, fnn_compile
-
-   ! temporal public network
-   public :: fnn_network, allocate_network, deallocate_network, initialize_network, add_layer_to_network, activate_network, print_network
+   public :: fnn_net, fnn_add, fnn_predict, fnn_print
 
    !------ Activation function interface ------
    interface
@@ -80,6 +77,12 @@ module FortranNeuralNetwork
    end type fnn_network
    !------ End Network type definition -------
 
+   !------ Network control vars  ------
+   type(fnn_network), pointer :: net
+   logical :: alloc = .false.
+   logical :: init = .false.
+   integer :: layer_id = 0
+   
 contains
 
    !------ Activation functions ------
@@ -330,7 +333,7 @@ contains
       integer :: i
 
       ! Print the opening bracket for the neuron
-      write (*, '(A)') repeat(' ', padding)//"["
+      write (*, '(A)') repeat(' ', padding)//"Neuron: ["
 
       ! Print the weights
       write (*, '(A)') repeat(' ', padding + 5)//"w = ["
@@ -802,19 +805,119 @@ contains
    !----- End Network cost function ---------
    
    !------ Public procedures of the neural network ------
-   integer(kind=ik) function fnn_net(network) result(error)
-      type(fnn_network), pointer :: network
-      error = 0
+   integer(kind=ik) function fnn_net(number_inputs, number_layers) result(error)
+       integer(kind=ik), intent(in) :: number_inputs, number_layers
+
+       ! Initialize error
+       error = 0
+
+       ! Allocate memory
+       if (alloc) then
+           if (associated(net)) error = deallocate_network(net)
+           alloc = .false.
+           init = .false.
+           if (error /= 0) then
+               nullify(net)
+               return
+           endif
+       endif
+       nullify(net)
+       error = allocate_network(net)
+       if ( error /= 0 ) then
+           nullify(net)
+           return
+       endif
+       alloc = .true.
+
+       ! Initialize network
+       error = initialize_network(net, number_inputs, number_layers)
+       if (error /= 0) return
+       init = .true.
+
+       ! Init layer id
+       layer_id = 0
+       
    end function fnn_net
 
-   integer(kind=ik) function fnn_add(network) result(error)
-      type(fnn_network), pointer :: network
-      error = 0
+   integer(kind=ik) function fnn_add(number_neurons, activation, derivative_activation) result(error)
+       integer(kind=ik), intent(in) :: number_neurons
+       procedure(fnn_activation_function), pointer :: activation
+       procedure(fnn_derivative_activation_function), pointer :: derivative_activation
+       
+       ! Initialize 
+       error = 0
+
+       ! If not alloc return with error 1
+       if ( .not. alloc ) then
+           error = 1
+           return
+       endif
+
+       ! If not init return with error 2
+       if ( .not. init ) then
+           error = 2
+           return
+       endif
+       
+       ! Add the layer
+       layer_id = layer_id + 1
+       error = add_layer_to_network(net, layer_id, number_neurons, activation, derivative_activation)
+       
    end function fnn_add
 
-   integer(kind=ik) function fnn_compile(network) result(error)
-      type(fnn_network), pointer :: network
-      error = 0
-   end function fnn_compile
+   integer(kind=ik) function fnn_predict(prediction_size, prediction, n_inputs, inputs) result(error)
+       integer(kind=ik), intent(out) :: prediction_size
+       real(kind=rk), pointer :: prediction(:)
+       integer(kind=ik), intent(in) :: n_inputs
+       real(kind=rk), pointer :: inputs(:)
+       
+       ! Initialize
+       error = 0
+
+       ! If not alloc return with error 1
+       if ( .not. alloc ) then
+           error = 1
+           return
+       endif
+
+       ! If not init return with error 2
+       if ( .not. init ) then
+           error = 2
+           return
+       endif
+
+       ! Check that inputs is associated
+       if ( .not. associated(inputs) ) then
+           error = 3
+           return
+       endif
+
+       ! Check that inputs size is equal to n_inputs
+       if ( size(inputs) /= n_inputs ) then
+           error = 4
+           return
+       endif
+
+       ! Check that the n_inputs is the same net number of inputs
+       if ( n_inputs /= net%number_inputs ) then
+           error = 5
+           return
+       endif
+       
+       ! Allocate prediction and initialize
+       prediction_size = net%layers(net%number_layers)%layer%number_neurons
+       nullify(prediction)
+       allocate(prediction(prediction_size), stat=error)
+       prediction = 0d0
+
+       ! Activate network
+       error = activate_network(net, prediction, n_inputs, inputs)
+       
+   end function fnn_predict
+
+   subroutine fnn_print()
+       if ((.not. alloc) .or. (.not. init)) return
+       call print_network(net)
+   end subroutine fnn_print
 
 end module FortranNeuralNetwork
