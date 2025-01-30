@@ -6,14 +6,15 @@ module FortranNeuralNetwork
 
     private
 
-    ! Activation functions public interfaces
-   public :: fnn_activation_function, fnn_derivative_activation_function, fnn_sigmoid, fnn_ReLU, fnn_derivative_sigmoid, fnn_derivative_ReLU
+    ! Activation functions public interfaces and procedures
+    public :: fnn_activation_function, fnn_derivative_activation_function, fnn_sigmoid,&
+              fnn_ReLU, fnn_derivative_sigmoid, fnn_derivative_ReLU
 
-    ! Cost functions public interfaces
-    public :: fnn_cost_MSE
+    ! Cost functions public interfaces and procedures
+    public :: fnn_cost_function, fnn_cost_MSE
 
     !  public interfaces
-    public :: fnn_net, fnn_add, fnn_predict, fnn_print
+    public :: fnn_net, fnn_add, fnn_predict, fnn_train, fnn_print
 
     !------ Activation function interface ------
     interface
@@ -35,12 +36,23 @@ module FortranNeuralNetwork
     end interface
     !------ End Derivative Activation function interface ------
 
+    !------ Cost function interface -------
+    interface
+        real(kind=rk) function fnn_cost_function(yp, y, n_predictions, n_samples) result(c)
+            use iso_fortran_env, only: ik => int32, rk => real64
+            real(kind=rk), pointer :: yp(:, :), y(:, :) ! Arrays n_samples x n_predictions
+            integer(kind=ik), intent(in) :: n_predictions, n_samples
+        end function fnn_cost_function
+    end interface
+    !------ End cost function interface -------
+    
     !------ Neuron type definition ------
     type fnn_neuron
         logical :: allocated = .false.
         logical :: initialized = .false.
         integer(kind=ik) :: number_inputs
         real(kind=rk), allocatable :: weights(:)
+        real(kind=rk), allocatable :: temp_weights(:)
         real(kind=rk) :: z
         real(kind=rk) :: a
         procedure(fnn_activation_function), nopass, pointer :: activation => null()
@@ -168,6 +180,11 @@ contains
             error = status
             return
         end if
+        if (allocated(neuron%temp_weights)) deallocate (neuron%temp_weights, stat=status)
+        if (status /= 0) then
+            error = status
+            return
+        endif
         neuron%z = 0d0
         neuron%a = 0d0
 
@@ -192,8 +209,10 @@ contains
         ! If neuron is not allocated, return
         if (.not. neuron%allocated) return
 
-        ! Allocate weights
+        ! deAllocate weights
         if (allocated(neuron%weights)) deallocate (neuron%weights, stat=status)
+        if (status /= 0) error = status
+        if (allocated(neuron%temp_weights)) deallocate (neuron%temp_weights, stat=status)
         if (status /= 0) error = status
 
         ! Set neuron state vars
@@ -233,6 +252,10 @@ contains
         call random_seed()
         call random_number(neuron%weights)
 
+        allocate (neuron%temp_weights(number_inputs), stat=error)
+        if (error /= 0) return
+        neuron%temp_weights = 0d0
+        
         ! Point activation and derivative_activaton function
         neuron%activation => activation
         neuron%derivative_activation => derivative_activation
@@ -787,6 +810,73 @@ contains
 
     end function activate_network
 
+    integer(kind=ik) function cost_network(network, number_inputs, number_predictions, number_samples, samples, expected,&
+                              cost_function, cost) result(error)
+        type(fnn_network), pointer :: network
+        integer(kind=ik), intent(in) :: number_inputs, number_predictions, number_samples
+        real(kind=rk), pointer :: samples(:,:), expected(:,:)
+        procedure(fnn_cost_function), pointer :: cost_function
+        real(kind=rk), intent(out) :: cost
+
+        ! Local var
+        real(kind=8), pointer :: yp(:,:), predictions(:), inputs(:)
+        integer isample
+
+        ! Nullify local pointers
+        nullify(yp, predictions, inputs)
+
+        ! Initialize error
+        error = 0
+
+        ! Initialize cost_function
+        cost = 0
+
+        ! Check if number of predictions is the same value that number of neurons last layer
+        if ( network%layers(network%number_layers)%layer%number_neurons /= number_predictions ) then
+            error = 1
+            return
+        endif
+
+        ! Check that samples and expected are associated pointers
+        if ( .not. associated(samples) .or. .not. associated(expected) ) then
+            error = 2
+            return
+        endif
+
+        ! Check that samples and expected pointers have the correct size
+        if ( size(samples,1) /= number_samples .or. size(samples,2) /= number_inputs ) then
+            error = 3
+            return
+        endif
+
+        if ( size(expected,1) /= number_samples .or. size(expected,2) /= number_predictions ) then
+            error = 4
+            return
+        endif
+        
+        ! Compute prediction for each sample
+        allocate(yp(number_samples, number_predictions), stat=error)
+        if ( error /= 0 ) return
+
+        do isample=1, number_samples
+           predictions => yp(isample,:)
+           inputs => samples(isample,:)
+           error = activate_network(network, predictions, number_inputs, inputs)
+           nullify(predictions, inputs)
+           if ( error /= 0 ) return
+        enddo
+
+        ! Compute the cost
+        cost = cost_function(yp, expected, number_predictions, number_samples)
+
+        ! Free memory
+        if (associated(yp) ) deallocate(yp)
+        
+        ! Nullify local pointers
+        nullify(yp, predictions, inputs)
+        
+    end function cost_network
+    
     subroutine print_network(network)
         type(fnn_network), pointer :: network
 
@@ -915,6 +1005,12 @@ contains
 
     end function fnn_predict
 
+    integer(kind=ik) function fnn_train() result(error)
+
+        ! Initialize error
+        error = 0
+    end function fnn_train
+    
     subroutine fnn_print()
         if ((.not. alloc) .or. (.not. init)) return
         call print_network(net)
