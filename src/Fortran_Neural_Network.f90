@@ -143,7 +143,7 @@ contains
         do i_sample = 1, n_samples
             do i_prediction = 1, n_predictions
                 diff(i_prediction) = yp(i_prediction, i_sample) - y(i_prediction, i_sample)
-            enddo
+            end do
             c = c + dot_product(diff, diff)
         end do
 
@@ -725,7 +725,7 @@ contains
         ! else it is not the first layer, initialize with number of inputs
         ! equal to number of neurons of layer_id - 1
         if (layer_id == 1) then
-            error = initialize_layer(network%layers(layer_id)%layer, network%number_inputs, number_neurons, activation, derivative_activation)
+  error = initialize_layer(network%layers(layer_id)%layer, network%number_inputs, number_neurons, activation, derivative_activation)
             if (error /= 0) return
         else
            error = initialize_layer(network%layers(layer_id)%layer, network%layers(layer_id - 1)%layer%number_neurons, number_neurons, activation, derivative_activation)
@@ -1023,14 +1023,14 @@ contains
         error = 0
         cost = huge(0d0)
         epochs = 0
-        do while(cost > 1e-6 .and. epochs < 10000)
+        do while (cost > 1e-6 .and. epochs < 10000)
 
             ! Compute the cost
             error = cost_network(net, number_inputs, number_predictions, number_samples, samples, expected, &
-                             cost_function, cost)
+                                 cost_function, cost)
 
             ! Print epochs
-            write(*,*) "Training epoch: ", epochs, " Cost: ", cost
+            write (*, *) "Training epoch: ", epochs, " Cost: ", cost
 
             ! Loop over layers
             do ilayer = 1, net%number_layers
@@ -1047,7 +1047,7 @@ contains
 
                         ! Compute the cost with the increment value
                         error = cost_network(net, number_inputs, number_predictions, number_samples, samples, expected, &
-                                         cost_function, cost_incr)
+                                             cost_function, cost_incr)
 
                         ! Estimate the gradient with finite differences
                         grad = (cost_incr - cost)/epsilon
