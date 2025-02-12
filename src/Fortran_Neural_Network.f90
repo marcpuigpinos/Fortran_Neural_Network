@@ -131,7 +131,7 @@ contains
 
         ! Local vars
         real(kind=rk), allocatable :: diff(:)
-        integer(kind=ik) i_sample
+        integer(kind=ik) i_sample, i_prediction
 
         ! Initialie cost
         c = 0d0
@@ -141,7 +141,9 @@ contains
 
         ! Loop over samples
         do i_sample = 1, n_samples
-            diff = yp(i_sample, :) - y(i_sample, :)
+            do i_prediction = 1, n_predictions
+                diff(i_prediction) = yp(i_prediction, i_sample) - y(i_prediction, i_sample)
+            enddo
             c = c + dot_product(diff, diff)
         end do
 
@@ -723,7 +725,7 @@ contains
         ! else it is not the first layer, initialize with number of inputs
         ! equal to number of neurons of layer_id - 1
         if (layer_id == 1) then
-  error = initialize_layer(network%layers(layer_id)%layer, network%number_inputs, number_neurons, activation, derivative_activation)
+            error = initialize_layer(network%layers(layer_id)%layer, network%number_inputs, number_neurons, activation, derivative_activation)
             if (error /= 0) return
         else
            error = initialize_layer(network%layers(layer_id)%layer, network%layers(layer_id - 1)%layer%number_neurons, number_neurons, activation, derivative_activation)
@@ -845,23 +847,23 @@ contains
         end if
 
         ! Check that samples and expected pointers have the correct size
-        if (size(samples, 1) /= number_samples .or. size(samples, 2) /= number_inputs) then
+        if (size(samples, 2) /= number_samples .or. size(samples, 1) /= number_inputs) then
             error = 3
             return
         end if
 
-        if (size(expected, 1) /= number_samples .or. size(expected, 2) /= number_predictions) then
+        if (size(expected, 2) /= number_samples .or. size(expected, 1) /= number_predictions) then
             error = 4
             return
         end if
 
         ! Compute prediction for each sample
-        allocate (yp(number_samples, number_predictions), stat=error)
+        allocate (yp(number_predictions, number_samples), stat=error)
         if (error /= 0) return
 
         do isample = 1, number_samples
-            predictions => yp(isample, :)
-            inputs => samples(isample, :)
+            predictions => yp(:, isample)
+            inputs => samples(:, isample)
             error = activate_network(network, predictions, number_inputs, inputs)
             nullify (predictions, inputs)
             if (error /= 0) return
@@ -1014,45 +1016,53 @@ contains
         procedure(fnn_cost_function), pointer :: cost_function
 
         ! Local vars
-        integer(kind=ik) :: ilayer, ineuron, iweight
+        integer(kind=ik) :: ilayer, ineuron, iweight, epochs
         real(kind=rk) cost, cost_incr, grad
 
         ! Initialize error
         error = 0
+        cost = huge(0d0)
+        epochs = 0
+        do while(cost > 1e-6 .and. epochs < 10000)
 
-        ! Compute the cost
-        error = cost_network(net, number_inputs, number_predictions, number_samples, samples, expected, &
+            ! Compute the cost
+            error = cost_network(net, number_inputs, number_predictions, number_samples, samples, expected, &
                              cost_function, cost)
 
-        ! Loop over layers
-        do ilayer = 1, net%number_layers
+            ! Print epochs
+            write(*,*) "Training epoch: ", epochs, " Cost: ", cost
 
-           ! Loop over each neuron
-            do ineuron = 1, net%layers(ilayer)%layer%number_neurons
+            ! Loop over layers
+            do ilayer = 1, net%number_layers
 
-               ! Loop over each weight
-                do iweight = 1, net%layers(ilayer)%layer%neurons(ineuron)%neuron%number_inputs
+                ! Loop over each neuron
+                do ineuron = 1, net%layers(ilayer)%layer%number_neurons
 
-                   ! Update the value of the weight with small epsilon value to compute derivative
-                    net%layers(ilayer)%layer%neurons(ineuron)%neuron%weights(iweight) = &
-                        net%layers(ilayer)%layer%neurons(ineuron)%neuron%weights(iweight) + epsilon
+                    ! Loop over each weight
+                    do iweight = 1, net%layers(ilayer)%layer%neurons(ineuron)%neuron%number_inputs
 
-                    ! Compute the cost with the increment value
-                    error = cost_network(net, number_inputs, number_predictions, number_samples, samples, expected, &
+                        ! Update the value of the weight with small epsilon value to compute derivative
+                        net%layers(ilayer)%layer%neurons(ineuron)%neuron%weights(iweight) = &
+                            net%layers(ilayer)%layer%neurons(ineuron)%neuron%weights(iweight) + epsilon
+
+                        ! Compute the cost with the increment value
+                        error = cost_network(net, number_inputs, number_predictions, number_samples, samples, expected, &
                                          cost_function, cost_incr)
 
-                    ! Estimate the gradient with finite differences
-                    grad = (cost_incr - cost)/epsilon
+                        ! Estimate the gradient with finite differences
+                        grad = (cost_incr - cost)/epsilon
 
-                    ! Update the weight with gradient descent
-                    net%layers(ilayer)%layer%neurons(ineuron)%neuron%weights(iweight) = &
-                        net%layers(ilayer)%layer%neurons(ineuron)%neuron%temp_weights(iweight) - learning_rate*grad
+                        ! Update the weight with gradient descent
+                        net%layers(ilayer)%layer%neurons(ineuron)%neuron%weights(iweight) = &
+                            net%layers(ilayer)%layer%neurons(ineuron)%neuron%temp_weights(iweight) - learning_rate*grad
 
-                    ! Update temp_weight
-                    net%layers(ilayer)%layer%neurons(ineuron)%neuron%temp_weights(iweight) = &
-                        net%layers(ilayer)%layer%neurons(ineuron)%neuron%weights(iweight)
+                        ! Update temp_weight
+                        net%layers(ilayer)%layer%neurons(ineuron)%neuron%temp_weights(iweight) = &
+                            net%layers(ilayer)%layer%neurons(ineuron)%neuron%weights(iweight)
+                    end do
                 end do
             end do
+            epochs = epochs + 1
         end do
 
     end function fnn_train
