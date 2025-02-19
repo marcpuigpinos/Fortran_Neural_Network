@@ -126,7 +126,7 @@ contains
 
     !------ Cost functions ------
     real(kind=rk) function fnn_cost_MSE(yp, y, n_predictions, n_samples) result(c)
-        real(kind=rk), pointer :: yp(:, :), y(:, :) ! Arrays n_samples x n_predictions
+        real(kind=rk), pointer :: yp(:, :), y(:, :) ! Arrays n_predictions x n_samples
         integer(kind=ik), intent(in) :: n_predictions, n_samples
 
         ! Local vars
@@ -253,6 +253,7 @@ contains
         if (error /= 0) return
         call random_seed()
         call random_number(neuron%weights)
+        neuron%weights = 2
 
         allocate (neuron%temp_weights(number_inputs), stat=error)
         if (error /= 0) return
@@ -1008,29 +1009,29 @@ contains
 
     end function fnn_predict
 
-    integer(kind=ik) function fnn_train(number_inputs, number_predictions, number_samples, samples, expected, &
+    integer(kind=ik) function fnn_train(number_inputs, number_predictions, number_samples, epochs, samples, expected, &
                                         learning_rate, epsilon, cost_function) result(error)
-        integer(kind=ik), intent(in) :: number_inputs, number_predictions, number_samples
+        integer(kind=ik), intent(in) :: number_inputs, number_predictions, number_samples, epochs
         real(kind=rk), pointer :: samples(:, :), expected(:, :)
         real(kind=rk), intent(in) :: learning_rate, epsilon
         procedure(fnn_cost_function), pointer :: cost_function
 
         ! Local vars
-        integer(kind=ik) :: ilayer, ineuron, iweight, epochs
+        integer(kind=ik) :: ilayer, ineuron, iweight, iepochs
         real(kind=rk) cost, cost_incr, grad
 
         ! Initialize error
         error = 0
         cost = huge(0d0)
-        epochs = 0
-        do while (cost > 1e-6 .and. epochs < 10000)
+        iepochs = 0
+        do while (cost > 1e-6 .and. iepochs < epochs)
 
             ! Compute the cost
             error = cost_network(net, number_inputs, number_predictions, number_samples, samples, expected, &
                                  cost_function, cost)
 
             ! Print epochs
-            write (*, *) "Training epoch: ", epochs, " Cost: ", cost
+            write (*, *) "Training epoch: ", iepochs, " Cost: ", cost
 
             ! Loop over layers
             do ilayer = 1, net%number_layers
@@ -1062,7 +1063,7 @@ contains
                     end do
                 end do
             end do
-            epochs = epochs + 1
+            iepochs = iepochs + 1
         end do
 
     end function fnn_train

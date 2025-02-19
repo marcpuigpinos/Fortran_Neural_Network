@@ -9,7 +9,7 @@ program main
     procedure(fnn_activation_function), pointer :: activation
     procedure(fnn_activation_function), pointer :: derivative_activation
     procedure(fnn_cost_function), pointer :: cost_function
-    integer number_inputs, number_layers, number_outputs, number_samples
+    integer number_inputs, number_layers, number_outputs, number_samples, epochs
     real(kind=real64), pointer :: samples_input(:, :), samples_output(:, :), prediction(:), inputs(:)
     real(kind=real64) learning_rate, epsilon
 
@@ -22,25 +22,27 @@ program main
 
     ! Define network
     number_inputs = 3
-    number_layers = 1
+    number_layers = 2
     number_outputs = 1
-    learning_rate = 0.1
+    epochs = 1000000
+    learning_rate = 0.01
     epsilon = 0.01
     error = fnn_net(number_inputs, number_layers)
+    error = fnn_add(2, activation, derivative_activation)
     error = fnn_add(number_outputs, activation, derivative_activation)
 
     ! Create the samples input and samples output arrays
     number_samples = 4
     allocate (samples_input(number_inputs, number_samples))
     allocate (samples_output(number_outputs, number_samples))
-    samples_input(1, 1) = 1.0; samples_input(2, 1) = 0.0; samples_input(3, 1) = 0.0; samples_output(1, 1) = 0.0
+    samples_input(1, 1) = 1.0; samples_input(2, 1) = 0.0; samples_input(3, 1) = 0.0; samples_output(1, 1) = 1.0
     samples_input(1, 2) = 1.0; samples_input(2, 2) = 1.0; samples_input(3, 2) = 0.0; samples_output(1, 2) = 0.0
     samples_input(1, 3) = 1.0; samples_input(2, 3) = 0.0; samples_input(3, 3) = 1.0; samples_output(1, 3) = 0.0
     samples_input(1, 4) = 1.0; samples_input(2, 4) = 1.0; samples_input(3, 4) = 1.0; samples_output(1, 4) = 1.0
 
     ! Train
-    cost_function => fnn_cost_MSE
-    error = fnn_train(number_inputs, number_outputs, number_samples, &
+    cost_function => cross_entropy_cost_function
+    error = fnn_train(number_inputs, number_outputs, number_samples, epochs, &
                       samples_input, samples_output, learning_rate, epsilon, cost_function)
     if (error /= 0) then
         print *, "Training failed"
@@ -51,6 +53,9 @@ program main
     allocate (inputs(number_inputs))
     inputs(1) = 1.0; inputs(2) = 0.0; inputs(3) = 0.0; 
     error = fnn_predict(number_outputs, prediction, number_inputs, inputs)
+
+    ! Print the network
+    call fnn_print()
 
     ! Print result
     write (*, *) "Inputs:"
@@ -94,5 +99,21 @@ program main
     if (associated(prediction)) deallocate (prediction)
     if (associated(inputs)) deallocate (inputs)
     nullify (samples_input, samples_output, prediction, inputs)
+
+    contains
+
+    ! Cross entropy procedure: https://en.wikipedia.org/wiki/Cross-entropy
+    real(kind=real64) function cross_entropy_cost_function(yp, y, n_predictions, n_samples) result(c)
+        real(kind=real64), pointer :: yp(:, :), y(:, :) ! Arrays n_samples x n_predictions
+        integer(kind=int32), intent(in) :: n_predictions, n_samples
+        integer(kind=int32) isample, ipred
+        c = 0d0
+        do isample = 1, n_samples
+            do ipred = 1, n_predictions
+                c = c - (y(ipred, isample)*log(yp(ipred, isample)) + (1d0-y(ipred, isample))*log(1d0 -yp(ipred, isample))) 
+            enddo
+        enddo
+        c = c / n_samples
+    end function cross_entropy_cost_function
 
 end program main
