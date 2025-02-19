@@ -11,7 +11,7 @@ module FortranNeuralNetwork
               fnn_ReLU, fnn_derivative_sigmoid, fnn_derivative_ReLU
 
     ! Cost functions public interfaces and procedures
-    public :: fnn_cost_function, fnn_cost_MSE
+    public :: fnn_cost_function, fnn_cost_MSE, fnn_cost_cross_entropy
 
     !  public interfaces
     public :: fnn_net, fnn_add, fnn_predict, fnn_train, fnn_print
@@ -155,6 +155,19 @@ contains
 
     end function fnn_cost_MSE
 
+    ! Cross entropy procedure: https://en.wikipedia.org/wiki/Cross-entropy
+    real(kind=rk) function fnn_cost_cross_entropy(yp, y, n_predictions, n_samples) result(c)
+        real(kind=rk), pointer :: yp(:, :), y(:, :) ! Arrays n_samples x n_predictions
+        integer(kind=ik), intent(in) :: n_predictions, n_samples
+        integer(kind=ik) isample, ipred
+        c = 0d0
+        do isample = 1, n_samples
+            do ipred = 1, n_predictions
+                c = c + (y(ipred, isample)*log(yp(ipred, isample)) + (1d0-y(ipred, isample))*log(1d0 -yp(ipred, isample))) 
+            enddo
+        enddo
+        c = -c / real(n_samples, kind=rk)
+    end function fnn_cost_cross_entropy
     !------ End cost functions ------
 
     !------ Neuron procedures ------
@@ -253,7 +266,6 @@ contains
         if (error /= 0) return
         call random_seed()
         call random_number(neuron%weights)
-        neuron%weights = 2
 
         allocate (neuron%temp_weights(number_inputs), stat=error)
         if (error /= 0) return
@@ -729,7 +741,8 @@ contains
   error = initialize_layer(network%layers(layer_id)%layer, network%number_inputs, number_neurons, activation, derivative_activation)
             if (error /= 0) return
         else
-           error = initialize_layer(network%layers(layer_id)%layer, network%layers(layer_id - 1)%layer%number_neurons, number_neurons, activation, derivative_activation)
+            !The input of this layer is the output + 1(bias) of the last layer
+            error = initialize_layer(network%layers(layer_id)%layer, network%layers(layer_id - 1)%layer%number_neurons + 1, number_neurons, activation, derivative_activation)
             if (error /= 0) return
         end if
 
@@ -786,8 +799,8 @@ contains
         allocate (activations(network%max_number_neurons), stat=error)
         if (error /= 0) return
 
-        !Allocate local inputs with the maximum between n_inputs and max_number_neurons
-        allocate (local_inputs(max(n_inputs, network%max_number_neurons)), stat=error)
+        !Allocate local inputs with the maximum between n_inputs and max_number_neurons + 1 (bias)
+        allocate (local_inputs(max(n_inputs, network%max_number_neurons + 1)), stat=error)
         if (error /= 0) return
 
         ! Initialize local_inputs
@@ -798,7 +811,8 @@ contains
             local_number_inputs = network%layers(ilayer)%layer%number_inputs
             local_number_neurons = network%layers(ilayer)%layer%number_neurons
             error = activations_layer(network%layers(ilayer)%layer, activations, local_number_inputs, local_inputs)
-            local_inputs(1:local_number_neurons) = activations(1:local_number_neurons)
+            local_inputs(1) = 1.0d0 ! Bias
+            local_inputs(2:local_number_neurons+1) = activations(1:local_number_neurons) ! Weights
         end do
 
         ! Output
@@ -1031,7 +1045,7 @@ contains
                                  cost_function, cost)
 
             ! Print epochs
-            write (*, *) "Training epoch: ", iepochs, " Cost: ", cost
+            if (mod(iepochs, max(int(epochs / 10, kind=ik),1)) == 0) write (*, *) "Training epoch: ", iepochs, " Cost: ", cost
 
             ! Loop over layers
             do ilayer = 1, net%number_layers
