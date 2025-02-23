@@ -1038,7 +1038,7 @@ contains
         error = 0
         cost = huge(0d0)
         iepochs = 0
-        do while (cost > 1e-6 .and. iepochs < epochs)
+        do while (cost > 1e-4 .and. iepochs < epochs)
 
             ! Compute the cost
             error = cost_network(net, number_inputs, number_predictions, number_samples, samples, expected, &
