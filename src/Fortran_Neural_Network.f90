@@ -1032,13 +1032,13 @@ contains
 
         ! Local vars
         integer(kind=ik) :: ilayer, ineuron, iweight, iepochs
-        real(kind=rk) cost, cost_incr, grad
+        real(kind=rk) cost, cost_incr_pos, cost_incr_neg, grad
 
         ! Initialize error
         error = 0
         cost = huge(0d0)
         iepochs = 0
-        do while (cost > 1e-6 .and. iepochs < epochs)
+        do while (cost > 1e-4 .and. iepochs < epochs)
 
             ! Compute the cost
             error = cost_network(net, number_inputs, number_predictions, number_samples, samples, expected, &
@@ -1056,16 +1056,24 @@ contains
                     ! Loop over each weight
                     do iweight = 1, net%layers(ilayer)%layer%neurons(ineuron)%neuron%number_inputs
 
-                        ! Update the value of the weight with small epsilon value to compute derivative
+                        ! Update the value of the weight with small positive epsilon value to compute derivative
                         net%layers(ilayer)%layer%neurons(ineuron)%neuron%weights(iweight) = &
-                            net%layers(ilayer)%layer%neurons(ineuron)%neuron%weights(iweight) + epsilon
+                            net%layers(ilayer)%layer%neurons(ineuron)%neuron%temp_weights(iweight) + epsilon
 
-                        ! Compute the cost with the increment value
+                        ! Compute the cost with the positive increment value
                         error = cost_network(net, number_inputs, number_predictions, number_samples, samples, expected, &
-                                             cost_function, cost_incr)
+                                             cost_function, cost_incr_pos)
+
+                        ! Update the value of the weight with small negative epsilon value to compute derivative
+                        net%layers(ilayer)%layer%neurons(ineuron)%neuron%weights(iweight) = &
+                            net%layers(ilayer)%layer%neurons(ineuron)%neuron%temp_weights(iweight) - epsilon
+
+                        ! Compute the cost with the negative increment value
+                        error = cost_network(net, number_inputs, number_predictions, number_samples, samples, expected, &
+                                             cost_function, cost_incr_neg)
 
                         ! Estimate the gradient with finite differences
-                        grad = (cost_incr - cost)/epsilon
+                        grad = (cost_incr_pos - cost_incr_neg)/(2d0 * epsilon)
 
                         ! Update the weight with gradient descent
                         net%layers(ilayer)%layer%neurons(ineuron)%neuron%weights(iweight) = &

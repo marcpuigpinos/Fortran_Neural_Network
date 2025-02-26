@@ -7,7 +7,7 @@ program main
 
     integer error
     procedure(fnn_activation_function), pointer :: activation
-    procedure(fnn_activation_function), pointer :: derivative_activation
+    procedure(fnn_derivative_activation_function), pointer :: derivative_activation
     procedure(fnn_cost_function), pointer :: cost_function
     integer number_inputs, number_layers, number_outputs, number_samples, epochs, i
     real(kind=real64), pointer :: samples_input(:, :), samples_output(:, :), prediction(:), inputs(:)
@@ -24,7 +24,7 @@ program main
     number_inputs = 3
     number_layers = 2
     number_outputs = 1
-    epochs = 1000000
+    epochs = 100000
     learning_rate = 0.1
     epsilon = 0.1
     error = fnn_net(number_inputs, number_layers)
