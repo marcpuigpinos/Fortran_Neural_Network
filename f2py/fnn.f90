@@ -2,10 +2,8 @@ module fnn
 
     use FortranNeuralNetwork
 
-    private
+    public
     
-    public :: network, add_layer, predict_network, train_network, print_network
-
 contains
 
     integer function network(number_inputs, number_layers) result(error)
@@ -84,8 +82,8 @@ contains
         
     end function train_network
     
-    subroutine print_network()
-        call fnn_print()
-    end subroutine print_network
+!    subroutine print_network()
+!        call fnn_print()
+!    end subroutine print_network
     
 end module fnn

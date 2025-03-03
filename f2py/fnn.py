@@ -1,4 +1,4 @@
-import fortran
+import fnn
 
 def main():
 
