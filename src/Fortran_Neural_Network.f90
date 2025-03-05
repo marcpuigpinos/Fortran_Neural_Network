@@ -1045,7 +1045,8 @@ contains
                                  cost_function, cost)
 
             ! Print epochs
-            if (mod(iepochs, max(int(epochs / 10, kind=ik),1)) == 0) write (*, *) "Training epoch: ", iepochs, " Cost: ", cost
+            !if (mod(iepochs, max(int(epochs / 10, kind=ik),1)) == 0) write (*, *) "Training epoch: ", iepochs, " Cost: ", cost
+            write (*, *) "Training epoch: ", iepochs, " Cost: ", cost
 
             ! Loop over layers
             do ilayer = 1, net%number_layers
