@@ -22,12 +22,13 @@ program xorGate
   
       ! Define network
       number_inputs = 3
-      number_layers = 2
+      number_layers = 3
       number_outputs = 1
       epochs = 100000
       learning_rate = 0.1
       epsilon = 0.1
       error = fnn_net(number_inputs, number_layers)
+      error = fnn_add(4, activation, derivative_activation)
       error = fnn_add(2, activation, derivative_activation)
       error = fnn_add(number_outputs, activation, derivative_activation)
   

@@ -21,7 +21,7 @@ program mnist
 
    nullify(samples_input, samples_output, activation, dactivation, cost_function)
 
-   open(unit=50, file="test\MNIST\mnist_train.csv")
+   open(unit=50, file="test/MNIST/mnist_train.csv")
 
    ! Define dynamic format
    allocate(samples(n_pixels+1, n_train_samples))
