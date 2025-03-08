@@ -1,6 +1,6 @@
 program main
 
-    use FortranNeuralNetwork
+    use fnn
 
     implicit none
 
