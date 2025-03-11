@@ -82,7 +82,7 @@ contains
         do i = 1, n_out
            vector_out(i) = 0d0
            do j = 1, n_inp
-              vector_out(i) = vector_out(i) + matrix(i,j) * vector_inp(j)
+              vector_out(i) = vector_out(i) + matrix(j,i) * vector_inp(j)
            enddo
         enddo
         
@@ -108,26 +108,34 @@ contains
         type(net_layer), intent(out) :: layer_out
         type(net_layer), intent(in) :: layer_in
 
+        ! Layer assignment constants
         layer_out%n_neurons = layer_in%n_neurons
         layer_out%n_inputs = layer_in%n_inputs
 
+        ! Layer assignment Arrays
+        ! mat_coeff
         if (allocated(layer_in%mat_coeff)) then
             if (allocated(layer_out%mat_coeff)) deallocate(layer_out%mat_coeff)
             allocate(layer_out%mat_coeff(layer_in%n_inputs, layer_in%n_neurons))
             layer_out%mat_coeff = layer_in%mat_coeff
         endif
 
+        ! z
         if (allocated(layer_in%z)) then
             if (allocated(layer_out%z)) deallocate(layer_out%z)
             allocate(layer_out%z(layer_in%n_neurons))
             layer_out%z = layer_in%z
         endif
 
+        ! activations
         if (allocated(layer_in%activations)) then
             if (allocated(layer_out%activations)) deallocate(layer_out%activations)
             allocate(layer_out%activations(layer_in%n_neurons))
             layer_out%activations = layer_in%activations
         endif        
+
+        ! pointers assignment
+        layer_out%activation_function => layer_in%activation_function
         
     end subroutine layer_assignment
     
@@ -237,7 +245,7 @@ contains
 
         ! compute activations
         do i = 1, layer%n_neurons
-           layer%activations(i) = layer%activation_function(layer%z(i), sum(layer%z))
+           layer%activations(i) = layer%activation_function(layer%z(i), sum(layer%z)) 
         enddo
         
     end function activate_layer
