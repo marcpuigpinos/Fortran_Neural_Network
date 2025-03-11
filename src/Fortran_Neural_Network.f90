@@ -8,7 +8,7 @@ module fnn
     private
 
     !  public interfaces
-    public :: net_init, net_add_layer, net_compile, net_activate, net_train, net_print
+    public :: net_init, net_add_layer, net_activate, net_train, net_print
 
     ! Interface procedures
     interface
@@ -35,10 +35,10 @@ module fnn
         procedure(activation_function), nopass, pointer :: activation_function
         !! Activation function of the neurons for this specific layer.
     end type net_layer
-
+    
     interface assignment(=)
         module procedure layer_assignment
-    end interface
+    end interface assignment(=)
     
     ! Net
     integer :: net_n_layers = 0 ! Total number of layers
@@ -329,32 +329,6 @@ contains
 
     end function net_add_layer
 
-    integer function net_compile(loss, epochs, batches, optimizer, learning_rate) result(error)
-    !! Compile the network architecture.
-        character(len=*), intent(in) :: loss
-        !! Name of the cost function.
-        integer, intent(in) ::  epochs
-        !! Number of epochs the training will be executed.
-        integer, intent(in), optional :: batches
-        !! Number of batches used during the training stage.
-        character(len=*), intent(in), optional :: optimizer
-        !! Optimizer used. By default GD.       
-        real, intent(in), optional :: learning_rate
-        !! Learning rate used for some algorithms.
-
-        ! Initialize error
-        error = 0
-
-        ! Print
-        write(*,'(A)') "Network compiled ..."
-        write(*,'(4x,A)') "- loss: "//trim(adjustl(loss))
-        write(*,'(4x,A,i10)') "- epochs: ", epochs
-        if (present(batches)) write(*,'(4x,A,i10)') "- batches: ", batches
-        if (present(optimizer)) write(*,'(4x,A)') "- optimizer: "//trim(adjustl(optimizer))
-        if (present(learning_rate)) write(*,'(4x,A,E15.7)') "- learning_rate: ", learning_rate
-
-    end function net_compile
-
     integer function net_activate(activations, inputs, n_outputs, n_inputs) result(error)
     !! Given an input array, activates the network.
         real, dimension(n_outputs), intent(out) :: activations
@@ -383,7 +357,7 @@ contains
         
     end function net_activate
 
-    integer function net_train(x_train, y_train, n_samples, n_inputs, n_outputs) result(error)
+    integer function net_train(x_train, y_train, n_samples, n_inputs, n_outputs, optimizer, loss, epochs, batches, learning_rate) result(error)
         !! Computes the training of the network given a training dataset
         !! First dimension size of the array y_train. Must be the same of the net_n_outputs (output layer).       
         real, dimension(n_inputs,n_samples), intent(in) :: x_train
@@ -395,9 +369,34 @@ contains
         integer, intent(in) :: n_inputs
         !! First dimension size of the array x_train. Must be the same of the net_n_inputs (input layer).
         integer, intent(in) :: n_outputs
+        !! First dimension of the array y_train.
+        character(len=*), intent(in) :: optimizer
+        !! Method used to optimize the loss function: gradient descent. 
+        character(len=*), intent(in) :: loss
+        !! Name of the loss/cost function: mean squared error.
+        integer, intent(in) :: epochs
+        !! Number of epochs of the training.
+        integer, intent(in) :: batches
+        !! Number of batches we want to divide the samples for training.
+        real, intent(in) :: learning_rate
+        !! Value of the learning rate.
 
         ! Initialize error
         error = 0
+
+        ! Select the optimizer
+        select case(trim(adjustl(optimizer)))
+        case("gradient_descent")
+            ! Select the loss
+            select case(trim(adjustl(loss)))
+            case("mean_squared_error")
+                ! Call the train_gradient_descent_mean_squared_error procedure
+            case default
+                !Print error
+            end select
+        case default
+            ! Print error
+        end select
         
         ! Print
         print *, "net_train"
