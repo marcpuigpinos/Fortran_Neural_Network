@@ -105,6 +105,7 @@ contains
 
     !------ Private procedures of the layer ------
     subroutine layer_assignment(layer_out, layer_in)
+        ! Assign layer procedure
         type(net_layer), intent(out) :: layer_out
         type(net_layer), intent(in) :: layer_in
 
@@ -140,6 +141,7 @@ contains
     end subroutine layer_assignment
     
     integer function init_layer(layer, n_neurons, n_inputs, f_activation_name) result(error)
+        ! Initialize layer procedure
         type(net_layer), intent(inout) :: layer
         integer, intent(in) :: n_neurons, n_inputs
         character(len=*), intent(in) :: f_activation_name
@@ -191,6 +193,7 @@ contains
     end function init_layer
 
     integer function free_layer(layer) result(error)
+        ! Free layer memory
         type(net_layer), intent(inout) :: layer
 
         ! Initialize error
@@ -226,6 +229,7 @@ contains
     end function free_layer
 
     integer function activate_layer(layer, inputs) result(error)
+        ! Compute the activations of the layer
         type(net_layer), intent(inout) :: layer
         real, intent(in), dimension(:) :: inputs
         integer i
@@ -277,12 +281,6 @@ contains
         ! Allocate array net_layers
         if ( .not. allocated(net_layers) ) allocate(net_layers(number_layers))
 
-        ! Print
-        write(*,'(A)') "Network has been initialized: "
-        write(*, '(4x,A,i10)') "- net_n_layers: ", net_n_layers
-        write(*, '(4x,A,i10)') "- net_n_inputs: ", net_n_inputs
-        write(*, '(4x,A,i10)') "- net_n_outputs: ", net_n_outputs
-        
     end function net_init
 
     integer function net_add_layer(number_neurons, f_activation_name) result(error)
@@ -320,13 +318,6 @@ contains
             return
         endif        
 
-        ! Print
-        write(*,'(A)') "Layer has been added: "
-        write(*,'(4x,A,i10)') "- net_n_layers: ", net_n_layers
-        write(*,'(4x,A,i10)') "- net_n_outputs: ", net_n_outputs
-        write(*,'(4x,A,i10)') "- number_neurons: ", number_neurons
-        write(*,'(4x,A)') "- activation: "//trim(adjustl(f_activation_name))
-
     end function net_add_layer
 
     integer function net_activate(activations, inputs, n_outputs, n_inputs) result(error)
@@ -351,9 +342,6 @@ contains
         do ilayer = 2, net_n_layers
            error = activate_layer(net_layers(ilayer), net_layers(ilayer-1)%activations)
         enddo
-        
-        ! Print
-        print *, "net_activate"
         
     end function net_activate
 
