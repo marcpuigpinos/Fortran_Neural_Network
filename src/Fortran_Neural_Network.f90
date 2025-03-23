@@ -8,7 +8,7 @@ module fnn
     private
 
     !  public interfaces
-    public :: net_init, net_add_layer, net_activate, net_train, net_print
+    public :: net_init, net_add_layer, net_activate, net_train, net_dalloc, net_print
 
     ! Interface procedures
     interface
@@ -46,6 +46,9 @@ module fnn
     integer :: net_n_outputs = 0 ! Total number of neurons of the output layer
     integer :: net_layer_id = 0 ! Layer id counter for add layers procedure.
     type(net_layer), allocatable, target, dimension(:) :: net_layers ! Array with the layers of the network
+
+    ! Auxiliar arrays:
+    real, allocatable :: n_outputs_size_array(:) ! Auxiliar array with size of n_outputs. Used for temporal storage of array values of this size.
 
 contains
 
@@ -259,6 +262,72 @@ contains
  
     !------ End Private procedures of the network ------
 
+    !----- Private procedures related with training -----
+    integer function cost_mean_squared_error(x_train, y_train, n_samples, n_inputs, n_outputs, cost) result(error)
+        real, dimension(n_inputs,n_samples), intent(in) :: x_train
+        ! Array with the input values of the dataset
+        real, dimension(n_outputs,n_samples), intent(in) :: y_train
+        ! Array with the expected values of the dataset
+        integer, intent(in) :: n_samples
+        ! Second dimension size of the arrays x_train and y_train. Correspond to the number of samples of the training set.
+        integer, intent(in) :: n_inputs
+        ! First dimension size of the array x_train. Must be the same of the net_n_inputs (input layer).
+        integer, intent(in) :: n_outputs
+        ! First dimension of the array y_train.
+        real, intent(out) :: cost
+
+        ! Local vars
+        integer i_sample
+        
+        ! initialize cost to zero
+        cost = 0.0
+
+        ! Loop over samples and compute the activation of the network.
+        do i_sample = 1, n_samples
+           error = net_activate(x_train(:,i_sample), n_outputs, n_inputs)
+           n_outputs_size_array = net_layers(net_n_layers)%activations - y_train(:, i_sample)
+           cost = cost + dot_product(n_outputs_size_array, n_outputs_size_array)
+        enddo
+
+        ! Average the costs over the samples.
+        cost = 0.5 * (cost / real(n_samples))
+        
+    end function cost_mean_squared_error
+    
+    integer function train_gradient_descent_mean_squared_error(x_train, y_train, n_samples, n_inputs, n_outputs, optimizer, loss, epochs, batches, learning_rate) result(error)
+        ! Training:
+        ! - Loss: Mean Squared Error
+        ! - Optimizer: Gradien Descent
+        real, dimension(n_inputs,n_samples), intent(in) :: x_train
+        ! Array with the input values of the dataset
+        real, dimension(n_outputs,n_samples), intent(in) :: y_train
+        ! Array with the expected values of the dataset
+        integer, intent(in) :: n_samples
+        ! Second dimension size of the arrays x_train and y_train. Correspond to the number of samples of the training set.
+        integer, intent(in) :: n_inputs
+        ! First dimension size of the array x_train. Must be the same of the net_n_inputs (input layer).
+        integer, intent(in) :: n_outputs
+        ! First dimension of the array y_train.
+        character(len=*), intent(in) :: optimizer
+        ! Method used to optimize the loss function: gradient descent. 
+        character(len=*), intent(in) :: loss
+        ! Name of the loss/cost function: mean squared error.
+        integer, intent(in) :: epochs
+        ! Number of epochs of the training.
+        integer, intent(in) :: batches
+        ! Number of batches we want to divide the samples for training.
+        real, intent(in) :: learning_rate
+        ! Value of the learning rate.
+
+        ! Local vars
+        real cost
+
+        ! Evaluate the cost
+        error = cost_mean_squared_error(x_train, y_train, n_samples, n_inputs, n_outputs, cost)
+        
+    end function train_gradient_descent_mean_squared_error
+    !----- End private procedures related with training -----
+    
     !------ Public procedures of the neural network ------
     integer function net_init(number_inputs, number_outputs, number_layers) result(error)
     !! Initializer of the network
@@ -281,8 +350,40 @@ contains
         ! Allocate array net_layers
         if ( .not. allocated(net_layers) ) allocate(net_layers(number_layers))
 
+        ! Allocate auxiliar arrays
+        if ( .not. allocated(n_outputs_size_array) ) allocate(n_outputs_size_array(net_n_outputs))
+        n_outputs_size_array = 0.0
+
     end function net_init
 
+    integer function net_dalloc() result(error)
+    !! Free memory and delete network
+        ! Local vars
+        integer i_layer
+        
+        ! Initialize error
+        error = 0
+        
+        ! Initialize network varaibles
+        net_n_inputs = 0
+        net_n_outputs = 0
+        net_n_layers = 0
+        net_layer_id = 0
+
+        ! deallocate array net_layers
+        if ( allocated(net_layers) ) then
+            do i_layer = 1, size(net_layers)
+               error = free_layer(net_layers(i_layer))
+            enddo
+            deallocate(net_layers)
+        endif
+        
+        ! deallocate auxiliar arrays
+        if ( allocated(n_outputs_size_array) ) deallocate(n_outputs_size_array)
+
+    end function net_dalloc
+
+    
     integer function net_add_layer(number_neurons, f_activation_name) result(error)
     !! Adds a layer to the network.
         integer, intent(in) :: number_neurons 
@@ -320,10 +421,8 @@ contains
 
     end function net_add_layer
 
-    integer function net_activate(activations, inputs, n_outputs, n_inputs) result(error)
+    integer function net_activate(inputs, n_outputs, n_inputs) result(error)
     !! Given an input array, activates the network.
-        real, dimension(n_outputs), intent(out) :: activations
-        !! Output array containing the values predicted by the network for each output layer neuron.
         real, dimension(n_inputs), target, intent(in) :: inputs
         !! Input array containing the values of the input layer.
         integer, intent(in) :: n_outputs
@@ -344,7 +443,7 @@ contains
         enddo
         
     end function net_activate
-
+    
     integer function net_train(x_train, y_train, n_samples, n_inputs, n_outputs, optimizer, loss, epochs, batches, learning_rate) result(error)
         !! Computes the training of the network given a training dataset
         !! First dimension size of the array y_train. Must be the same of the net_n_outputs (output layer).       
@@ -392,14 +491,23 @@ contains
     end function net_train
 
     integer function net_print() result(error)
-        integer ilayer
+        !! Print network information
+        integer ilayer, i_output
         error = 0
 
         do ilayer=1, net_n_layers
-           write(*,'(A,i5)') "Layer ", ilayer
+           write(*,'(A,i5)') "Layer: [ ", ilayer
            write(*,'(4x,A,i5)') "n_neurons: ", net_layers(ilayer)%n_neurons
            write(*,'(4x,A,i5)') "n_inputs: ", net_layers(ilayer)%n_inputs
+           write(*,'(A)') "]"
         enddo
+
+        write(*,'(A)') "Output layer activations: ["
+        do i_output=1, net_n_outputs
+           write(*,'(4x,E15.7)') net_layers(net_n_layers)%activations(i_output)
+        enddo
+        write(*,'(A)') "]"
+        
     end function net_print
     
     
