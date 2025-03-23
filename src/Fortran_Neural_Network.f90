@@ -34,6 +34,8 @@ module fnn
         !! Array storing the activations of the neurons. Size n_neurons.
         procedure(activation_function), nopass, pointer :: activation_function
         !! Activation function of the neurons for this specific layer.
+        procedure(activation_function), nopass, pointer :: derivative_activation_function
+        !! Derivative of the activation function. Same interface that activation_function
     end type net_layer
     
     interface assignment(=)
@@ -97,10 +99,23 @@ contains
         a = max(0.0,z)
     end function relu
 
+    real function d_relu(z, z_sum) result(da)
+        real, intent(in) :: z, z_sum
+        da = 0.0
+        if ( z > 0.0 ) da = 1.0
+    end function d_relu
+
     real function sigmoid(z, z_sum) result(a)
         real, intent(in) :: z, z_sum
         a = 1.0/(1.0 + exp(-z))
     end function sigmoid
+
+    real function d_sigmoid(z, z_sum) result(da)
+        real, intent(in) :: z, z_sum
+        real sigmoid_value
+        sigmoid_value = sigmoid(z, z_sum)
+        da = sigmoid_value * (1.0 - sigmoid_value)
+    end function d_sigmoid
     !------ End Private procedures activation functions
     
 
@@ -140,6 +155,7 @@ contains
 
         ! pointers assignment
         layer_out%activation_function => layer_in%activation_function
+        layer_out%derivative_activation_function => layer_in%derivative_activation_function
         
     end subroutine layer_assignment
     
@@ -185,8 +201,10 @@ contains
         select case( trim(adjustl(f_activation_name)) )
         case("ReLU")
             layer%activation_function => relu
+            layer%derivative_activation_function => d_relu
         case("sigmoid")
             layer%activation_function => sigmoid
+            layer%derivative_activation_function => d_sigmoid
         case default
             error = 1
             write(error_unit,*) "Error: init_layer: initialization of the layer failed when selecting activation function"
@@ -294,7 +312,7 @@ contains
         
     end function cost_mean_squared_error
     
-    integer function train_gradient_descent_mean_squared_error(x_train, y_train, n_samples, n_inputs, n_outputs, optimizer, loss, epochs, batches, learning_rate) result(error)
+    integer function train_gradient_descent_mean_squared_error(x_train, y_train, n_samples, n_inputs, n_outputs, optimizer, loss, epochs, learning_rate) result(error)
         ! Training:
         ! - Loss: Mean Squared Error
         ! - Optimizer: Gradien Descent
@@ -314,16 +332,26 @@ contains
         ! Name of the loss/cost function: mean squared error.
         integer, intent(in) :: epochs
         ! Number of epochs of the training.
-        integer, intent(in) :: batches
-        ! Number of batches we want to divide the samples for training.
         real, intent(in) :: learning_rate
         ! Value of the learning rate.
 
         ! Local vars
-        real cost
-
-        ! Evaluate the cost
-        error = cost_mean_squared_error(x_train, y_train, n_samples, n_inputs, n_outputs, cost)
+        real cost, gradient
+        integer isample, ilayer, jlayer, iepoch
+        
+        ! Loop over trainning epochs
+        do iepoch = 1, epochs
+           ! Evaluate the cost
+           error = cost_mean_squared_error(x_train, y_train, n_samples, n_inputs, n_outputs, cost)
+           samples_do: do isample = 1, n_samples
+              outer: do ilayer = net_n_layers, 1, -1
+                 inner: do jlayer = net_n_layers, 1, -1
+                 
+                    if (ilayer == jlayer) exit inner
+                 enddo inner
+              enddo outer
+           enddo samples_do
+        enddo
         
     end function train_gradient_descent_mean_squared_error
     !----- End private procedures related with training -----
@@ -444,7 +472,7 @@ contains
         
     end function net_activate
     
-    integer function net_train(x_train, y_train, n_samples, n_inputs, n_outputs, optimizer, loss, epochs, batches, learning_rate) result(error)
+    integer function net_train(x_train, y_train, n_samples, n_inputs, n_outputs, optimizer, loss, epochs, learning_rate) result(error)
         !! Computes the training of the network given a training dataset
         !! First dimension size of the array y_train. Must be the same of the net_n_outputs (output layer).       
         real, dimension(n_inputs,n_samples), intent(in) :: x_train
@@ -463,8 +491,6 @@ contains
         !! Name of the loss/cost function: mean squared error.
         integer, intent(in) :: epochs
         !! Number of epochs of the training.
-        integer, intent(in) :: batches
-        !! Number of batches we want to divide the samples for training.
         real, intent(in) :: learning_rate
         !! Value of the learning rate.
 
