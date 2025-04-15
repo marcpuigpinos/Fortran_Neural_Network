@@ -25,7 +25,7 @@ doc:
 	echo "set -xe" >> src/doc/server.sh
 	echo "python -m http.server 9000 -d src/doc" >> src/doc/server.sh
 	chmod +x src/doc/server.sh
-	alacritty -e src/doc/server.sh &
+	bash -e src/doc/server.sh &
 	firefox localhost:9000
 
 .PHONY: clean
