@@ -177,4 +177,9 @@ Let's do the same for the bias $\mathbf{b^*}$:
   &= \dfrac{1}{m} \sum_1^m (a_2 - y) f'_{a2}(z_2)
 \end{align}
 
+Let's generalize, and consider the bias $b$, the component $0$ of the weights, so $\mathbf{w_i} = (w_{i0}, w_{i1}, ..., w_{in})$ and $\mathbf{a_i} = (1, a_{i1}, ..., a_{in})$:
+\begin{align}
+  \delta_{w_i} C(\mathbf{w}) &= \dfrac{1}{2m} \sum_{i=1}^m (a_n - y) f'_{an}(z_n) w_n f'_{an-1}(z_{n-1}) w_{n-1} ... f'_{a_i}(z_i) a_i
+\end{align}
+
 \end{document}
