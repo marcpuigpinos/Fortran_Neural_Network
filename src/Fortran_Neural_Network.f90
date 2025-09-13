@@ -12,10 +12,16 @@ module fnn
 
    ! Interface procedures
    interface
-      real function activation_function(z, z_sum) result(a)
-         real, intent(in) :: z
-         real, intent(in) :: z_sum
-      end function activation_function
+       real function activation_function(z, z_sum) result(a)
+           real, intent(in) :: z
+           real, intent(in) :: z_sum
+       end function activation_function
+
+       real function derivative_activation_function(z, z_sum) result(a)
+           real, intent(in) :: z
+           real, intent(in) :: z_sum
+       end function derivative_activation_function
+       
    end interface
    ! End interface procedures
 
@@ -32,6 +38,8 @@ module fnn
         !! Array storing the dot product beteween weights and inputs: $$z = \mathbf{w}^T \cdot \mathbf{x}$$. Size n_neurons.
       real, allocatable, dimension(:) :: activations
         !! Array storing the activations of the neurons. Size n_neurons.
+      real, allocatable, dimension(:) :: dactivations
+        !! Array storing the derivative of the activations of the neurons. Size n_neurons
       procedure(activation_function), nopass, pointer :: activation_function
         !! Activation function of the neurons for this specific layer.
       procedure(activation_function), nopass, pointer :: derivative_activation_function
@@ -152,6 +160,13 @@ contains
          layer_out%activations = layer_in%activations
       end if
 
+      ! dactivations
+      if (allocated(layer_in%dactivations)) then
+         if (allocated(layer_out%dactivations)) deallocate (layer_out%dactivations)
+         allocate (layer_out%dactivations(layer_in%n_neurons))
+         layer_out%dactivations = layer_in%dactivations
+      end if
+      
       ! pointers assignment
       layer_out%activation_function => layer_in%activation_function
       layer_out%derivative_activation_function => layer_in%derivative_activation_function
@@ -195,6 +210,15 @@ contains
       end if
       layer%activations = 0d0
 
+      ! Initialize dactivations
+      if (.not. allocated(layer%dactivations)) allocate (layer%dactivations(n_neurons), stat=error)
+      if (error /= 0) then
+         write (error_unit, *) "Error: init_layer: initialization of the layer failed when allocating dactivations."
+         return
+      end if
+      layer%dactivations = 0d0
+
+      
       ! Set activation function.
       nullify (layer%activation_function)
       select case (trim(adjustl(f_activation_name)))
@@ -208,7 +232,8 @@ contains
          error = 1
          write (error_unit, *) "Error: init_layer: initialization of the layer failed when selecting activation function"
          return
-      end select
+     end select
+     
 
    end function init_layer
 
@@ -243,8 +268,14 @@ contains
          return
       end if
 
-      ! Nullify cost function
-      nullify (layer%activation_function)
+      if (allocated(layer%dactivations)) deallocate (layer%dactivations, stat=error)
+      if (error /= 0) then
+         write (error_unit, *) "Error: free_layer: free memory of the layer failed when deallocating dactivations."
+         return
+      end if
+      
+      ! Nullify cost function and it's derivative
+      nullify (layer%activation_function, layer%derivative_activation_function)
 
    end function free_layer
 
@@ -253,6 +284,7 @@ contains
       type(net_layer), intent(inout) :: layer
       real, intent(in), dimension(:) :: inputs
       integer i
+      real sum_z
 
       ! Initialize error
       error = 0
@@ -267,9 +299,11 @@ contains
       ! compute z
       error = matrix_vector_product(layer%mat_coeff, inputs, layer%z)
 
-      ! compute activations
+      ! compute activations and it's derivatives
+      sum_z = sum(layer%z)
       do i = 1, layer%n_neurons
-         layer%activations(i) = layer%activation_function(layer%z(i), sum(layer%z))
+          layer%activations(i) = layer%activation_function(layer%z(i), sum_z)
+          layer%dactivations(i) = layer%derivative_activation_function(layer%z(i), sum_z)
       end do
 
    end function activate_layer
@@ -311,7 +345,8 @@ contains
 
    end function cost_mean_squared_error
 
-    integer function train_gradient_descent_mean_squared_error(x_train, y_train, n_samples, n_inputs, n_outputs, optimizer, loss, epochs, learning_rate) result(error)
+   integer function train_gradient_descent_mean_squared_error(x_train, y_train, n_samples, n_inputs, n_outputs, optimizer, loss, epochs, learning_rate) result(error)
+      ! TODO
       ! Training:
       ! - Loss: Mean Squared Error
       ! - Optimizer: Gradien Descent
@@ -339,18 +374,9 @@ contains
       integer isample, ilayer, jlayer, iepoch
 
       ! Loop over trainning epochs
-      do iepoch = 1, epochs
-         ! Evaluate the cost
-         error = cost_mean_squared_error(x_train, y_train, n_samples, n_inputs, n_outputs, cost)
-         samples_do: do isample = 1, n_samples
-            outer: do ilayer = net_n_layers, 1, -1
-               inner: do jlayer = net_n_layers, 1, -1
-
-                  if (ilayer == jlayer) exit inner
-               end do inner
-            end do outer
-         end do samples_do
-      end do
+      EPOCHS_DO: do iepoch = 1, epochs
+         
+      end do EPOCHS_DO
 
    end function train_gradient_descent_mean_squared_error
    !----- End private procedures related with training -----
@@ -501,7 +527,8 @@ contains
          ! Select the loss
          select case (trim(adjustl(loss)))
          case ("mean_squared_error")
-            ! Call the train_gradient_descent_mean_squared_error procedure
+             ! Call the train_gradient_descent_mean_squared_error procedure
+             error = train_gradient_descent_mean_squared_error(x_train, y_train, n_samples, n_inputs, n_outputs, optimizer, loss, epochs, learning_rate)
          case default
             !Print error
          end select
