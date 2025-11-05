@@ -33,6 +33,8 @@ module fnn
 
         real(kind=8), allocatable, dimension(:) :: activations ! Vector of activations
         real(kind=8), allocatable, dimension(:) :: outputs ! Vector of outputs
+        real(kind=8), allocatable, dimension(:) :: z ! Pre-activation (weighted sums) vector
+        real(kind=8), allocatable, dimension(:,:) :: w ! Weights matrix: (nn) x (na+1) including bias
 
    end type fnn_layer
    
@@ -119,6 +121,24 @@ contains
         allocate(layer%outputs(nn), stat=error%code, errmsg=error%msg)
         if (error%code /= 0) call exit_proc() ! Any error exit
         layer%outputs = 0d0
+
+        ! Initialize pre-activation vector z
+        if (allocated(layer%z)) deallocate(layer%z, stat=error%code, errmsg=error%msg)
+        if (error%code /= 0) call exit_proc()
+        allocate(layer%z(nn), stat=error%code, errmsg=error%msg)
+        if (error%code /= 0) call exit_proc()
+        layer%z = 0d0
+
+        ! Initialize weights matrix w (nn x (na+1)) including bias column
+        if (allocated(layer%w)) deallocate(layer%w, stat=error%code, errmsg=error%msg)
+        if (error%code /= 0) call exit_proc()
+        allocate(layer%w(nn, na+1), stat=error%code, errmsg=error%msg)
+        if (error%code /= 0) call exit_proc()
+        ! Fill weights with small random values in range [-0.1, 0.1]
+        call random_number(layer%w)
+        layer%w = (2.0d0*layer%w - 1.0d0) * 0.1d0
+
+        call exit_proc()
         
     contains
 
@@ -133,6 +153,8 @@ contains
     ! Definition of the public interfaces
     
     type(fnn_error) function fnn_initialize_network() result(error)
+        integer :: seed_n, i, clk
+        integer, allocatable :: seed(:)
 
         ! Initialize error
         call default_error(error)
@@ -141,6 +163,17 @@ contains
         nl = 0
         tnn = 0
         ll = FNN_ARRAY_INC
+
+        ! Seed the random number generator using system clock
+        call system_clock(clk)
+        call random_seed(size=seed_n)
+        allocate(seed(seed_n))
+        do i = 1, seed_n
+            seed(i) = clk + i * 37
+        end do
+        call random_seed(put=seed)
+        deallocate(seed)
+
         if (allocated(layers)) deallocate(layers, stat=error%code, errmsg=error%msg)
         if (error%code /= 0) return ! If any error return
         allocate(layers(ll), stat=error%code, errmsg=error%msg)
@@ -237,5 +270,6 @@ contains
 
     end function fnn_add_layer
         
-   
+    
+
 end module fnn
