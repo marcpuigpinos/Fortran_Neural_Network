@@ -165,7 +165,7 @@ contains
         nl = nl + 1
 
         ! If layer array length is equal to numbers of layers, increase the layers array.
-        if (nl == ll) then
+        if (nl > ll) then
             error = layer_arr_inc()
             if (error%code /= 0) then
                 call exit_proc() ! Exit the procedure
@@ -203,9 +203,11 @@ contains
         end if
 
         ! Check if activations array have the length.
-        if (size(activations) /= na) then
-            error%code = 5
-            error%msg = "fnn_add_layer: activations array length is different that number of activations"
+        if (nl==1) then
+            if (size(activations) /= na) then
+                error%code = 5
+                error%msg = "fnn_add_layer: activations array length is different that number of activations"
+            endif
         endif
 
         ! Reserve the memory for the layer
