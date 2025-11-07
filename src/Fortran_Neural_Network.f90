@@ -169,7 +169,7 @@ contains
         call random_seed(size=seed_n)
         allocate(seed(seed_n))
         do i = 1, seed_n
-            seed(i) = clk + i * 37
+            seed(i) = clk + i * 37 ! Arbitrary formula to get different seeds. 37 is a prime number in order to reduce correlations.
         end do
         call random_seed(put=seed)
         deallocate(seed)
