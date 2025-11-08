@@ -17,6 +17,14 @@ module fnn
    ! Constants
    integer, parameter :: FNN_MSG_BUFF = 256
    integer, parameter :: FNN_ARRAY_INC = 128
+
+   ! Definition of activation function types
+   integer, parameter :: FNN_RELU = 1000
+   integer, parameter :: FNN_SIGMOID = 1001
+
+   ! Definition of optimization functions
+   integer, parameter :: FNN_SQUARE_ERROR = 2000
+   integer, parameter :: FNN_CROSS_ENTROPY = 2001
    
    ! Definition of error type
    type fnn_error
@@ -25,6 +33,14 @@ module fnn
    end type fnn_error
    
 
+   ! Define an abstract interface for activation functions
+   abstract interface
+        function activation_function(z) result(a)
+            real(kind=8), intent(in) :: z
+            real(kind=8) :: a
+        end function activation_function
+   end interface
+   
    ! Definition of the layer type
    type fnn_layer
        integer :: id, & ! Id of the layer
@@ -35,6 +51,7 @@ module fnn
         real(kind=8), allocatable, dimension(:) :: outputs ! Vector of outputs
         real(kind=8), allocatable, dimension(:) :: z ! Pre-activation (weighted sums) vector
         real(kind=8), allocatable, dimension(:,:) :: w ! Weights matrix: (nn) x (na+1) including bias
+        procedure(activaton_function), pointer :: activation_function ! Pointer to activation function
 
    end type fnn_layer
    
@@ -55,8 +72,19 @@ contains
         error%msg = ""
     end subroutine default_error
 
-
+    ! Activation function procedures
     
+    ! RELU activation function
+    real(kind=8) function relu_activation(z) result(a)
+        real(kind=8), intent(in) :: z
+        if (z > 0d0) then
+            a = z
+        else
+            a = 0d0
+        end if
+    end function relu_activation
+    
+
     ! Layer procedures
     
     type(fnn_error) function layer_arr_inc() result(error)
@@ -91,11 +119,12 @@ contains
         
     end function layer_arr_inc
     
-    type(fnn_error) function initialize_layer(layer, id, na, nn, activations) result(error)
+    type(fnn_error) function initialize_layer(layer, id, na, nn, activation_fun_type, activations) result(error)
         type(fnn_layer), pointer :: layer
         integer, intent(in) :: id, & ! Layer id
                                na, & ! Number of activations of the layer
-                               nn ! Number of neurons of the layer
+                               nn, & ! Number of neurons of the layer
+                               activation_fun_type ! Type of activation function to use
         real(kind=8), intent(in) :: activations(na)
 
         ! Initialize error
@@ -137,6 +166,16 @@ contains
         ! Fill weights with small random values in range [-0.1, 0.1]
         call random_number(layer%w)
         layer%w = (2.0d0*layer%w - 1.0d0) * 0.1d0
+
+        ! Set activation function pointer
+        select case (activation_fun_type)
+            case (FNN_RELU)
+                layer%activation_function => relu_activation
+            case default
+                error%code = 10
+                error%msg = "initialize_layer: unknown activation function type."
+                call exit_proc()
+        end select
 
         call exit_proc()
         
@@ -182,8 +221,9 @@ contains
         
     end function fnn_initialize_network   
     
-    type(fnn_error) function fnn_add_layer(nn, na, activations) result(error)
+    type(fnn_error) function fnn_add_layer(nn, activation_fun_type, na, activations) result(error)
         integer, intent(in) :: nn ! Number of neurons of the layer
+        integer, intent(in) :: activation_fun_type ! Type of activation function to use
         integer, optional, intent(in) :: na ! Number of activatoins. Optional: only needed when is first layer
         real(kind=8), optional, intent(in) :: activations(:) ! Array of activations. Optional: only needed when is first layer.
         type(fnn_layer), pointer :: layer, prev_layer
@@ -246,12 +286,12 @@ contains
         ! Reserve the memory for the layer
         if (nl == 1) then
             layer => layers(nl)
-            error = initialize_layer(layer, nl, na, nn, activations)
+            error = initialize_layer(layer, nl, activation_fun_type, na, nn, activations)
             nullify(layer, prev_layer)
         else
             layer => layers(nl)
             prev_layer => layers(nl-1)
-            error = initialize_layer(layer, nl, prev_layer%nn, nn, prev_layer%outputs)
+            error = initialize_layer(layer, nl, activation_fun_type, prev_layer%nn, nn, prev_layer%outputs)
             nullify(layer, prev_layer)
         endif
 
@@ -270,6 +310,61 @@ contains
 
     end function fnn_add_layer
         
+
+    type(fnn_error) function fnn_inference(input, output) result(error)
+        real(kind=8), intent(in) :: input(:)
+        real(kind=8), intent(out) :: output(:)
+
+        ! Initialize error
+        call default_error(error)
+
+        ! Check input size
+        if (size(input) /= layers(1)%na) then
+            error%code = 6
+            error%msg = "fnn_inference: input size does not match number of activations of first layer."
+            return
+        end if
+        
+        ! Check output size
+        if (size(output) /= layers(nl)%nn) then
+            error%code = 7
+            error%msg = "fnn_inference: output size does not match number of neurons of last layer."
+            return
+        end if
+        
+        ! Forward propagation
+        error = forward_propagation(input, output)
+        if (error%code /= 0) return ! If any error, return.
+
+    end function fnn_inference
+
+
+    type(fnn_error) function forward_propagation(input, output) result(error)
+        real(kind=8), intent(in) :: input(:)
+        real(kind=8), intent(out) :: output(:)
+
+        ! Initialize error
+        call default_error(error)
+
+        ! Initialize first layer activations with input
+        layers(1)%activations(2:layers(1)%na+1) = input
+        layers(1)%activations(1) = 1d0 ! Bias activation
+        
+        ! Loop over network layers
+        do il = 1, nl
+            ! Loop over neurons of the layer
+            do in = 1, layers(il)%nn
+                ! Compute pre-activation z
+                layers(il)%z(in) = sum(layers(il)%w(in, :) * layers(il)%activations(:))
+                ! Compute output using activation function 
+                layers(il)%outputs(in) = activation_function(layers(il)%z(in))
+            end do
+        enddo
+
+        ! Set output
+        output = layers(nl)%outputs
+
+    end function forward_propagation
     
 
 end module fnn
