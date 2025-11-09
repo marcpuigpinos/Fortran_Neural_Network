@@ -7,12 +7,20 @@ module fnn
 
    private
 
+   ! Public constants
+    public :: FNN_RELU, &
+              FNN_SIGMOID, & 
+              FNN_SQUARE_ERROR, &
+              FNN_CROSS_ENTROPY
+   
    ! public types
    public :: fnn_error
 
    !  public interfaces
    public :: fnn_initialize_network, &
-             fnn_add_layer
+             fnn_add_layer, &
+             fnn_inference, &
+             fnn_finalize_network
 
    ! Constants
    integer, parameter :: FNN_MSG_BUFF = 256
@@ -33,8 +41,8 @@ module fnn
    end type fnn_error
    
 
-   ! Define an abstract interface for activation functions
-   abstract interface
+   ! Define an interface for activation functions
+   interface
         function activation_function(z) result(a)
             real(kind=8), intent(in) :: z
             real(kind=8) :: a
@@ -51,7 +59,7 @@ module fnn
         real(kind=8), allocatable, dimension(:) :: outputs ! Vector of outputs
         real(kind=8), allocatable, dimension(:) :: z ! Pre-activation (weighted sums) vector
         real(kind=8), allocatable, dimension(:,:) :: w ! Weights matrix: (nn) x (na+1) including bias
-        procedure(activaton_function), pointer :: activation_function ! Pointer to activation function
+        procedure(activation_function), pointer, nopass :: activation_function ! Pointer to activation function
 
    end type fnn_layer
    
@@ -119,13 +127,12 @@ contains
         
     end function layer_arr_inc
     
-    type(fnn_error) function initialize_layer(layer, id, na, nn, activation_fun_type, activations) result(error)
+    type(fnn_error) function initialize_layer(layer, id, na, nn, activation_fun_type) result(error)
         type(fnn_layer), pointer :: layer
         integer, intent(in) :: id, & ! Layer id
                                na, & ! Number of activations of the layer
                                nn, & ! Number of neurons of the layer
                                activation_fun_type ! Type of activation function to use
-        real(kind=8), intent(in) :: activations(na)
 
         ! Initialize error
         call default_error(error)
@@ -142,7 +149,7 @@ contains
         if (error%code /= 0) call exit_proc() ! Any error exit
         
         layer%activations(1) = 1d0
-        layer%activations(2:na+1) = activations
+        layer%activations(2:na+1) = 0d0
 
         ! Initialize vector of outputs
         if (allocated(layer%outputs)) deallocate(layer%outputs, stat=error%code, errmsg=error%msg)
@@ -221,13 +228,18 @@ contains
         
     end function fnn_initialize_network   
     
-    type(fnn_error) function fnn_add_layer(nn, activation_fun_type, na, activations) result(error)
+    type(fnn_error) function fnn_add_layer(nn, na, activation_fun_type) result(error)
         integer, intent(in) :: nn ! Number of neurons of the layer
         integer, intent(in) :: activation_fun_type ! Type of activation function to use
-        integer, optional, intent(in) :: na ! Number of activatoins. Optional: only needed when is first layer
-        real(kind=8), optional, intent(in) :: activations(:) ! Array of activations. Optional: only needed when is first layer.
+        integer, optional, intent(in) :: na ! Number of activations (only for first layer)
+        
+        ! Local pointers
         type(fnn_layer), pointer :: layer, prev_layer
 
+        ! Local vars
+        integer local_na
+
+        
         ! Initialize error
         call default_error(error)
 
@@ -249,7 +261,6 @@ contains
         tnn = tnn + nn
 
         ! Check if we are first layer, and we have number of activations na argument given
-        ! Check if we are first layer, and we have activations array.
         if (nl == 1 .and. (.not. present(na))) then
             error%code = 1
             error%msg = "fnn_add_layer: number of activations not given on first layer."
@@ -259,41 +270,20 @@ contains
             error%code = 2
             error%msg = "fnn_add_layer: number of activations is given in an intermidate layer."
             call exit_proc()
-
+            
         end if        
 
-        ! Check if we are first layer, and we have activations array.
-        if (nl == 1 .and. (.not. present(activations))) then
-            error%code = 3
-            error%msg = "fnn_add_layer: activations array missing on first layer."
-            call exit_proc()
-
-        else if (nl > 1 .and. present(activations)) then
-            error%code = 4
-            error%msg = "fnn_add_layer: activations array is given in an intermidate layer."
-            call exit_proc()
-
-        end if
-
-        ! Check if activations array have the length.
-        if (nl==1) then
-            if (size(activations) /= na) then
-                error%code = 5
-                error%msg = "fnn_add_layer: activations array length is different that number of activations"
-            endif
-        endif
-
         ! Reserve the memory for the layer
+        layer => layers(nl)
         if (nl == 1) then
-            layer => layers(nl)
-            error = initialize_layer(layer, nl, activation_fun_type, na, nn, activations)
-            nullify(layer, prev_layer)
+            local_na = na
         else
-            layer => layers(nl)
             prev_layer => layers(nl-1)
-            error = initialize_layer(layer, nl, activation_fun_type, prev_layer%nn, nn, prev_layer%outputs)
-            nullify(layer, prev_layer)
+            local_na = prev_layer%nn
         endif
+
+        ! Initialize the layer
+        error = initialize_layer(layer, nl, na, nn, activation_fun_type)
 
         call exit_proc() ! Exit the procedure
 
@@ -339,9 +329,29 @@ contains
     end function fnn_inference
 
 
+    type(fnn_error) function fnn_finalize_network() result(error)
+        ! Initialize error
+        call default_error(error)
+
+        ! Deallocate layers
+        if (allocated(layers)) then
+            deallocate(layers, stat=error%code, errmsg=error%msg)
+            if (error%code /= 0) return ! If any error return
+        end if
+
+        ! Reset network parameters
+        nl = 0
+        ll = 0
+        tnn = 0
+
+    end function fnn_finalize_network
+    
+
     type(fnn_error) function forward_propagation(input, output) result(error)
         real(kind=8), intent(in) :: input(:)
         real(kind=8), intent(out) :: output(:)
+
+        integer :: il, in
 
         ! Initialize error
         call default_error(error)
@@ -357,7 +367,7 @@ contains
                 ! Compute pre-activation z
                 layers(il)%z(in) = sum(layers(il)%w(in, :) * layers(il)%activations(:))
                 ! Compute output using activation function 
-                layers(il)%outputs(in) = activation_function(layers(il)%z(in))
+                layers(il)%outputs(in) = layers(il)%activation_function(layers(il)%z(in))
             end do
         enddo
 
